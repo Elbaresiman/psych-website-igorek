@@ -1,0 +1,13 @@
+import os
+
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "8408939701:AAHUaSMk5clF2iTps_cDVLVo5j5-Yaz7P74")
+OLLAMA_API_URL = "http://localhost:11434/api/chat"
+
+ADMIN_IDS = [5138916305]
+USER_IDS = []
+INITMODEL = "llama3"
+
+OLLAMA_BASE_URL = "localhost"
+OLLAMA_PORT = 11434
+TIMEOUT = 3000
+

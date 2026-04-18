@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width" />
+        <link rel="stylesheet" href="/static/css.css" />
+        <link rel="icon" type="image/x-icon" href="/static/Martynov.ico" />
+        <script src="/static/script.js"></script>
+    </head>
+    <body>
+        <h1>Бот-помощник для психологической поддержки</h1>
+        <h1>Игорёк</h1>
+        
+        <div id="survey-floating-btn" class="floating-survey-btn" style="display: block;">
+            Опросы 📊
+        </div>
+
+        <div class="button-container">
+            <div id="main-buttons" class="fade-in">
+                <button id="chat" data-target="chat-section" class="main">Пообщаться 💬</button>
+                <button id="advice" data-target="advice-section" class="main">Советы 🧘</button>
+                <button id="history" data-target="history-section" class="main">История 📖</button>
+                <button id="diary" data-target="diary-section" class="main">Дневник настроения 🌸</button>
+                <button id="help" data-target="help-section" class="main">Помощь 🆘</button>
+            </div>
+            
+            <div id="chat-section" class="section fade-out">
+            </div>
+            
+            <div id="advice-section" class="section fade-out">
+                <button id="advice-breathing">Техника дыхания 🌬️</button>
+                <button id="advice-method">Метод 5-4-3-2-1 🌿</button>
+                <button id="advice-meditation">Медитация 🧘</button>
+                <button id="advice-massage">Массаж 💆</button>
+                <button id="advice-help">Экспресс-помощь 🆘</button>
+                <button id="advice-back" class="back">Назад ◀️</button>
+            </div>
+            
+            <div id="history-section" class="section fade-out">
+                <div id="history-list"></div>
+                <button id="history-clean">Очистить историю 🧹</button>
+                <button id="history-back" class="back">Назад ◀️</button>
+            </div>
+            
+            <div id="diary-section" class="section fade-out">
+                <button id="diary-log">Записать настроение ✍️</button>
+                <button id="diary-view">Посмотреть записи 📖</button>
+                <button id="diary-statistics">Статистика 📊</button>
+                <button id="diary-analysis">Анализ настроения 🧠</button>
+                <button id="diary-advice">Совет по настроению ✨</button>
+                <button id="diary-reminders">Напоминания ⏰</button>
+                <button id="diary-back" class="back">Назад ◀️</button>
+            </div>
+
+            <div id="survey-section" class="section fade-out">
+                <div id="survey-content" class="survey-container">
+                </div>
+                <button id="survey-close" class="survey-close-btn" style="display: none;">X</button>
+            </div>
+            
+            <div id="help-section" class="section fade-out">
+                <p>📞 Телефон доверия: 8-800-2000-122 (бесплатно, круглосуточно)</p>
+                <p>👨⚕️ Личный специалист: +7 (918) 557-73-40</p>
+                <button id="help-back" class="back">Назад ◀️</button>
+            </div>
+        </div>
+        
+        <script>
+            let sessionId = localStorage.getItem('diarySessionId');
+            if (!sessionId) {
+                sessionId = 'user_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+                localStorage.setItem('diarySessionId', sessionId);
+            }
+            localStorage.setItem('sessionId', sessionId);
+        </script>
+    </body>
+</html>
