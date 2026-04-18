@@ -2,14 +2,22 @@ document.addEventListener('DOMContentLoaded', function() {
     const API_BASE = '';
     const sessionId = localStorage.getItem('sessionId');
     
-    const mainButtons = document.querySelectorAll('[data-target]');
-    const backButtons = document.querySelectorAll('[id$="-back"]');
+    // Navigation logic
+    const mainButtons = document.querySelectorAll('#main-buttons button.main');
+    const backButtons = document.querySelectorAll('.back');
     const mainMenu = document.getElementById('main-buttons');
     const sections = document.querySelectorAll('.section');
     
     const diaryMainButton = document.getElementById('diary');
-    // Note: switchToSection already calls loadDiaryInterface for diary-section
-    // No special handler needed here to avoid double execution
+        if (diaryMainButton) {
+            diaryMainButton.addEventListener('click', function() {
+                const targetId = this.getAttribute('data-target');
+                if (targetId === 'diary-section') {
+                    switchToSection(targetId);
+                    loadDiaryInterface();
+                }
+            });
+        }
 
     if ('Notification' in window) {
         Notification.requestPermission();
@@ -17,85 +25,113 @@ document.addEventListener('DOMContentLoaded', function() {
     setInterval(checkReminders, 60000);
     checkReminders();
 
-    const surveyMainButton = document.getElementById('survey-floating-btn');
+    const surveyMainButton = document.getElementById('survey');
     if (surveyMainButton) {
         surveyMainButton.addEventListener('click', function() {
-            switchToSection('survey-section');
+            const targetId = this.getAttribute('data-target');
+            if (targetId === 'survey-section') {
+                switchToSection(targetId);
+            }
         });
     }
 
     function switchToSection(targetSectionId) {
-        mainMenu.classList.add('hidden');
+        mainMenu.classList.remove('fade-in');
+        mainMenu.classList.add('fade-out');
+        
         sections.forEach(section => {
-            section.classList.add('hidden');
+            section.classList.remove('fade-in');
+            section.classList.add('fade-out');
         });
+        
         const targetSection = document.getElementById(targetSectionId);
-        targetSection.classList.remove('hidden');
-        if (targetSectionId === 'chat-section') {
-            loadChatInterface();
-        } else if (targetSectionId === 'history-section') {
-            loadHistory();
-        } else if (targetSectionId === 'diary-section') {
-            loadDiaryInterface();
-        } else if (targetSectionId === 'survey-section') {
-            loadSurveyInterface();
-        } else if (targetSectionId === 'advice-section') {
-            showAdviceMenu();
-        }
+        setTimeout(() => {
+            targetSection.classList.remove('fade-out');
+            targetSection.classList.add('fade-in');
+            
+            if (targetSectionId === 'chat-section') {
+                loadChatInterface();
+            } else if (targetSectionId === 'history-section') {
+                loadHistory();
+            } else if (targetSectionId === 'diary-section') {
+                loadDiaryInterface();
+            }
+        }, 50);
     }
     
     function returnToMain() {
         sections.forEach(section => {
-            section.classList.add('hidden');
+            section.classList.remove('fade-in');
+            section.classList.add('fade-out');
         });
-        mainMenu.classList.remove('hidden');
+        
+        setTimeout(() => {
+            mainMenu.classList.remove('fade-out');
+            mainMenu.classList.add('fade-in');
+        }, 50);
+        
         fetch(`${API_BASE}/api/chat/end/${sessionId}`, { method: 'POST' });
     }
     
+    // Chat functionality
     function loadChatInterface() {
-        const chatMessages = document.getElementById('chat-messages');
+        const chatSection = document.getElementById('chat-section');
+        chatSection.innerHTML = `
+            <div class="card bg-base-100 shadow-lg p-6 max-w-3xl mx-auto">
+                <div class="h-[450px] overflow-y-auto rounded-lg p-4 bg-base-200 mb-4" id="chat-messages"></div>
+                <div class="flex gap-3 mb-4">
+                    <input type="text" id="chat-input" placeholder="Напишите сообщение..." class="input input-bordered flex-1">
+                    <button id="chat-send" class="btn btn-primary">Отправить</button>
+                </div>
+                <button id="chat-exit" class="btn btn-ghost">Выход 🔙</button>
+            </div>
+        `;
+        
         const chatInput = document.getElementById('chat-input');
         const chatSend = document.getElementById('chat-send');
         const chatExit = document.getElementById('chat-exit');
         
-        if (chatMessages) chatMessages.innerHTML = '';
-        
         const savedMessages = loadChatMessages();
-        savedMessages.forEach(msg => { addMessage(msg.role, msg.content, false); });
+        savedMessages.forEach(msg => {
+            addMessage(msg.role, msg.content, false);
+        })
+
+        chatSend.addEventListener('click', () => sendMessage());
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
         
-        if (chatSend) {
-            chatSend.addEventListener('click', () => sendMessage());
-        }
-        if (chatInput) {
-            chatInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessage(); });
-        }
-        if (chatExit) {
-            chatExit.addEventListener('click', () => { returnToMain(); });
-        }
+        chatExit.addEventListener('click', () => {
+            returnToMain();
+        });
         
         async function sendMessage() {
-            const input = document.getElementById('chat-input');
-            const message = input.value.trim();
+            const message = chatInput.value.trim();
             if (!message) return;
+            
             addMessage('user', message);
-            input.value = '';
+            chatInput.value = '';
+            
             const typingId = addTypingIndicator();
+            
             try {
                 const response = await fetch(`${API_BASE}/api/chat`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ session_id: sessionId, message })
                 });
+                
                 const data = await response.json();
                 removeTypingIndicator(typingId);
+                
                 if (data.success) {
                     await simulateTyping(data.response);
                 } else {
-                    addMessage('bot', '<i class="ti ti-alert-circle text-error"></i> Ошибка получения ответа');
+                    addMessage('bot', '❌ Ошибка получения ответа');
                 }
             } catch (error) {
                 removeTypingIndicator(typingId);
-                addMessage('bot', '<i class="ti ti-alert-triangle text-warning"></i> Ошибка соединения');
+                addMessage('bot', '⚠️ Ошибка соединения');
             }
         }
     }
@@ -103,21 +139,25 @@ document.addEventListener('DOMContentLoaded', function() {
     async function simulateTyping(fullText) {
         const messages = document.getElementById('chat-messages');
         const messageDiv = document.createElement('div');
-        messageDiv.className = 'chat chat-start message-enter';
+        messageDiv.className = 'chat chat-start';
         const bubbleDiv = document.createElement('div');
         bubbleDiv.className = 'chat-bubble chat-bubble-secondary animate-pulse';
         bubbleDiv.textContent = '';
         messageDiv.appendChild(bubbleDiv);
         messages.appendChild(messageDiv);
+
         let currentText = '';
+
         for (let i = 0; i < fullText.length; i++) {
             currentText += fullText[i];
             bubbleDiv.textContent = currentText;
             messages.scrollTop = messages.scrollHeight;
             await new Promise(resolve => setTimeout(resolve, 18 + Math.random() * 18));
         }
+
         bubbleDiv.textContent = fullText;
         bubbleDiv.classList.remove('animate-pulse');
+
         const currentMessages = loadChatMessages();
         currentMessages.push({ role: 'bot', content: fullText });
         saveChatMessages(currentMessages);
@@ -126,13 +166,14 @@ document.addEventListener('DOMContentLoaded', function() {
     function addMessage(role, content, save = true) {
         const messages = document.getElementById('chat-messages');
         const messageDiv = document.createElement('div');
-        messageDiv.className = role === 'user' ? 'chat chat-end message-enter' : 'chat chat-start message-enter';
+        messageDiv.className = role === 'user' ? 'chat chat-end' : 'chat chat-start';
         const bubbleDiv = document.createElement('div');
         bubbleDiv.className = role === 'user' ? 'chat-bubble chat-bubble-primary' : 'chat-bubble chat-bubble-secondary';
         bubbleDiv.textContent = content;
         messageDiv.appendChild(bubbleDiv);
         messages.appendChild(messageDiv);
         messages.scrollTop = messages.scrollHeight;
+
         if (save) {
             const currentMessages = loadChatMessages();
             currentMessages.push({ role, content });
@@ -161,49 +202,46 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function saveChatMessages(messages) {
-        localStorage.setItem('chat_' + sessionId, JSON.stringify(messages));
+        localStorage.setItem(`chat_${sessionId}`, JSON.stringify(messages));
     }
 
     function loadChatMessages() {
-        const saved = localStorage.getItem('chat_' + sessionId);
+        const saved = localStorage.getItem(`chat_${sessionId}`);
         return saved ? JSON.parse(saved) : [];
     }
     
     function clearChatMessages() {
-        localStorage.removeItem('chat_' + sessionId);
+        localStorage.removeItem(`chat_${sessionId}`);
     }
 
+
+    // Advice section
     const adviceButtons = {
         'advice-breathing': { 
             category: 'breathing',
-            title: 'Техника дыхания',
-            icon: 'ti-wind',
+            title: 'Техника дыхания 🌬️',
             multiPage: true,
             totalPages: 3
         },
         'advice-method': { 
             category: 'grounding',
-            title: 'Метод 5-4-3-2-1',
-            icon: 'ti-leaf',
+            title: 'Метод 5-4-3-2-1 🌿',
             multiPage: false
         },
         'advice-meditation': { 
             category: 'meditation',
-            title: 'Медитация',
-            icon: 'ti-flower',
+            title: 'Медитация 🧘',
             multiPage: false
         },
         'advice-massage': { 
             category: 'massage',
-            title: 'Массаж',
-            icon: 'ti-hand-click',
+            title: 'Массаж 💆',
             multiPage: true,
             totalPages: 5
         },
         'advice-help': { 
             category: 'emergency',
-            title: 'Экспресс-помощь',
-            icon: 'ti-alert-circle',
+            title: 'Экспресс-помощь 🆘',
             multiPage: false
         }
     };
@@ -216,13 +254,17 @@ document.addEventListener('DOMContentLoaded', function() {
     };
 
     function attachAdviceButtonListeners() {
-        const adviceSection = document.getElementById('advice-section');
-        const adviceGrid = adviceSection.querySelector('.grid');
-        
         Object.entries(adviceButtons).forEach(([buttonId, config]) => {
             const button = document.getElementById(buttonId);
             if (button) {
-                button.addEventListener('click', async () => {
+                button.replaceWith(button.cloneNode(true));
+                const newButton = document.getElementById(buttonId);
+                
+                newButton.addEventListener('click', async () => {
+                    const adviceSection = document.getElementById('advice-section');
+                    adviceSection.classList.remove('fade-in');
+                    adviceSection.classList.add('fade-out');
+                    
                     try {
                         if (config.multiPage) {
                             let response;
@@ -236,31 +278,39 @@ document.addEventListener('DOMContentLoaded', function() {
                             let content = config.category === 'massage' ? data.content : data.content;
                             let totalPages = config.category === 'massage' ? data.total_pages : config.totalPages;
                             
-                            showAdviceContent(
-                                config.category, 
-                                config.title, 
-                                config.icon,
-                                content, 
-                                1, 
-                                totalPages
-                            );
+                            setTimeout(() => {
+                                showAdviceContent(
+                                    config.category, 
+                                    config.title, 
+                                    content, 
+                                    1, 
+                                    totalPages
+                                );
+                                adviceSection.classList.remove('fade-out');
+                                adviceSection.classList.add('fade-in');
+                            }, 150);
                             
                         } else {
                             const response = await fetch(`${API_BASE}/api/advice/${config.category}`);
                             const data = await response.json();
                             
-                            showAdviceContent(
-                                config.category,
-                                config.title,
-                                config.icon,
-                                data.content,
-                                1,
-                                1
-                            );
+                            setTimeout(() => {
+                                showAdviceContent(
+                                    config.category,
+                                    config.title,
+                                    data.content,
+                                    1,
+                                    1
+                                );
+                                adviceSection.classList.remove('fade-out');
+                                adviceSection.classList.add('fade-in');
+                            }, 150);
                         }
                     } catch (error) {
                         console.error('Error fetching advice:', error);
-                        showInAppNotification('error', 'Ошибка при загрузке совета');
+                        adviceSection.classList.remove('fade-out');
+                        adviceSection.classList.add('fade-in');
+                        alert('Ошибка при загрузке совета');
                     }
                 });
             }
@@ -268,15 +318,14 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const adviceBackButton = document.getElementById('advice-back');
         if (adviceBackButton) {
-            adviceBackButton.addEventListener('click', () => {
-                showAdviceMenu();
-            });
+            adviceBackButton.replaceWith(adviceBackButton.cloneNode(true));
+            const newBackButton = document.getElementById('advice-back');
+            newBackButton.addEventListener('click', returnToMain);
         }
     }
 
-    function showAdviceContent(category, title, icon, content, page = 1, totalPages = 1) {
+    function showAdviceContent(category, title, content, page = 1, totalPages = 1) {
         const adviceSection = document.getElementById('advice-section');
-        const adviceGrid = adviceSection.querySelector('.grid');
         
         currentAdviceState = {
             category,
@@ -285,144 +334,139 @@ document.addEventListener('DOMContentLoaded', function() {
             content
         };
         
-        let adviceHtml = '<div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">';
-        adviceHtml += '<div class="card-body p-8">';
-        adviceHtml += '<div class="flex items-center gap-3 mb-6"><div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center"><i class="ti ' + icon + ' text-2xl text-primary"></i></div><h2 class="text-2xl font-bold">' + title + '</h2></div>';
+        let adviceHtml = `
+            <div class="card bg-base-100 shadow-lg p-6 max-w-3xl mx-auto">
+                <h2 class="text-2xl font-bold text-primary mb-2 text-center">${title}</h2>
+        `;
         
         if (totalPages > 1) {
-            adviceHtml += '<div class="text-sm text-base-content/60 mb-4"><span class="badge badge-ghost">Страница ' + page + ' из ' + totalPages + '</span></div>';
+            adviceHtml += `<div class="text-sm text-base-content/60 text-center mb-4">Страница ${page} из ${totalPages}</div>`;
         }
         
-        adviceHtml += '<div class="bg-base-200 rounded-xl p-6 prose max-w-none" id="advice-content">' + content + '</div>';
-        adviceHtml += '<div class="flex justify-center gap-4 mt-6">';
+        adviceHtml += `
+                <div class="bg-base-200 rounded-lg p-6 mb-4 prose max-w-none" id="advice-content">
+                    ${content}
+                </div>
+                <div class="flex justify-center gap-3 mb-4">
+        `;
         
         if (totalPages > 1) {
             if (page > 1) {
-                adviceHtml += '<button id="advice-prev" class="btn btn-secondary gap-2"><i class="ti ti-arrow-left"></i> Предыдущая</button>';
+                adviceHtml += `<button id="advice-prev" class="btn btn-secondary btn-sm">⬅️ Предыдущая</button>`;
             }
             if (page < totalPages) {
-                adviceHtml += '<button id="advice-next" class="btn btn-primary gap-2">Следующая <i class="ti ti-arrow-right"></i></button>';
+                adviceHtml += `<button id="advice-next" class="btn btn-primary btn-sm">Следующая ➡️</button>`;
             }
         }
         
-        adviceHtml += '</div>';
-        adviceHtml += '<div class="mt-4"><button id="advice-back-to-menu" class="btn btn-ghost gap-2"><i class="ti ti-arrow-left"></i> К списку советов</button></div>';
-        adviceHtml += '</div></div>';
+        adviceHtml += `
+                </div>
+                <button id="advice-back-to-menu" class="btn btn-ghost">◀️ К списку советов</button>
+            </div>
+        `;
         
-        if (adviceGrid) {
-            adviceGrid.classList.add('hidden');
-        }
+        adviceSection.innerHTML = adviceHtml;
         
-        const existingContent = adviceSection.querySelector('#advice-content-view');
-        if (existingContent) {
-            existingContent.innerHTML = adviceHtml;
-            existingContent.classList.remove('hidden');
-        } else {
-            const contentDiv = document.createElement('div');
-            contentDiv.id = 'advice-content-view';
-            contentDiv.innerHTML = adviceHtml;
-            adviceSection.appendChild(contentDiv);
-        }
+        adviceSection.classList.add('fade-in');
         
         if (document.getElementById('advice-prev')) {
             document.getElementById('advice-prev').addEventListener('click', () => {
-                navigateAdvicePage(category, page - 1);
+                
+                setTimeout(() => {
+                    navigateAdvicePage(category, page - 1);
+                }, 50);
             });
         }
         
         if (document.getElementById('advice-next')) {
             document.getElementById('advice-next').addEventListener('click', () => {
-                navigateAdvicePage(category, page + 1);
+                
+                setTimeout(() => {
+                    navigateAdvicePage(category, page + 1);
+                }, 50);
             });
         }
         
         document.getElementById('advice-back-to-menu').addEventListener('click', () => {
-            showAdviceMenu();
+            adviceSection.classList.remove('fade-in');
+            adviceSection.classList.add('fade-out');
+            
+            setTimeout(() => {
+                showAdviceMenu();
+                adviceSection.classList.remove('fade-out');
+                adviceSection.classList.add('fade-in');
+            }, 150);
         });
     }
 
     function showAdviceMenu() {
         const adviceSection = document.getElementById('advice-section');
-        const adviceGrid = adviceSection.querySelector('.grid');
-        const adviceContentView = adviceSection.querySelector('#advice-content-view');
         
-        if (adviceGrid) {
-            adviceGrid.classList.remove('hidden');
-        }
-        if (adviceContentView) {
-            adviceContentView.classList.add('hidden');
-        }
+        adviceSection.innerHTML = `
+            <div class="card bg-base-100 shadow-lg p-6 max-w-3xl mx-auto">
+                <h2 class="text-2xl font-bold text-primary mb-6 text-center">Советы</h2>
+                <div class="flex flex-col gap-3">
+                    <button id="advice-breathing" class="btn btn-primary">Техника дыхания 🌬️</button>
+                    <button id="advice-method" class="btn btn-primary">Метод 5-4-3-2-1 🌿</button>
+                    <button id="advice-meditation" class="btn btn-primary">Медитация 🧘</button>
+                    <button id="advice-massage" class="btn btn-primary">Массаж 💆</button>
+                    <button id="advice-help" class="btn btn-primary">Экспресс-помощь 🆘</button>
+                    <button id="advice-back" class="btn btn-ghost">Назад ◀️</button>
+                </div>
+            </div>
+        `;
+        attachAdviceButtonListeners();
     }
 
     async function navigateAdvicePage(category, newPage) {
         try {
             let response;
             if (category === 'massage') {
-                response = await fetch(`${API_BASE}/api/advice/massage?page=` + newPage);
+                response = await fetch(`${API_BASE}/api/advice/massage?page=${newPage}`);
             } else if (category === 'breathing') {
-                response = await fetch(`${API_BASE}/api/advice/breathing/` + (newPage - 1));
+                response = await fetch(`${API_BASE}/api/advice/breathing/${newPage - 1}`);
             }
             
             const data = await response.json();
             
-            let title = category === 'massage' ? 'Массаж' : 'Техника дыхания';
-            let icon = category === 'massage' ? 'ti-hand-click' : 'ti-wind';
+            let title = category === 'massage' ? 'Массаж 💆' : 'Техника дыхания 🌬️';
             let content = data.content;
             let totalPages = category === 'massage' ? data.total_pages : 3;
 
-            showAdviceContent(category, title, icon, content, newPage, totalPages);
+            showAdviceContent(category, title, content, newPage, totalPages);
         } catch (error) {
             console.error('Error navigating advice:', error);
         }
     }
 
+    // History section
     async function loadHistory() {
         try {
             const response = await fetch(`${API_BASE}/api/history/${sessionId}?limit=5`);
             const data = await response.json();
             
             const historyList = document.getElementById('history-list');
-            const historyEmpty = document.getElementById('history-empty');
-            
             historyList.innerHTML = '';
             
             if (data.history && data.history.length > 0) {
-                if (historyEmpty) historyEmpty.classList.add('hidden');
-                historyList.classList.remove('hidden');
-                
-                data.history.forEach((msg, index) => {
+                data.history.forEach(msg => {
                     const item = document.createElement('div');
-                    item.className = 'p-6 hover:bg-base-200/50 transition-colors group';
+                    item.className = 'card bg-base-200 rounded-lg p-4 mb-3';
                     item.innerHTML = `
-                        <div class="flex items-start gap-4">
-                            <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-lg flex-shrink-0 border border-base-300">
-                                <i class="ti ti-message-2 text-primary"></i>
-                            </div>
-                            <div class="flex-1 space-y-2">
-                                <div class="flex items-start justify-between">
-                                    <div class="flex items-center gap-2">
-                                        <span class="badge badge-primary badge-sm">Вы</span>
-                                        <span class="font-medium">${msg.user}</span>
-                                    </div>
-                                </div>
-                                <div class="flex items-center gap-2 pl-16">
-                                    <span class="badge badge-secondary badge-sm">Игорёк</span>
-                                    <span class="text-base-content/80">${msg.bot}</span>
-                                </div>
-                            </div>
-                        </div>
+                        <div class="mb-2"><strong class="text-primary">Вы:</strong> ${msg.user}</div>
+                        <div><strong class="text-primary">Бот:</strong> ${msg.bot}</div>
                     `;
                     historyList.appendChild(item);
                 });
             } else {
-                if (historyEmpty) historyEmpty.classList.remove('hidden');
-                historyList.classList.add('hidden');
+                historyList.innerHTML = '<p class="text-center text-base-content/70">История пуста</p>';
             }
         } catch (error) {
             console.error('Error loading history:', error);
         }
     }
     
+    const historyList = document.getElementById('history-list');
     const historyClean = document.getElementById('history-clean');
     if (historyClean) {
         historyClean.addEventListener('click', async () => {
@@ -430,48 +474,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 await fetch(`${API_BASE}/api/history/clear/${sessionId}`, { method: 'POST' });
                 clearChatMessages();
                 await loadHistory();
-                const historyList = document.getElementById('history-list');
-                if (historyList.innerHTML === '<p>История пуста</p>') {
-                    showInAppNotification('info', 'Очищать нечего.');
-                } else {
-                    showInAppNotification('success', 'История очищена');
-                }
+                if (historyList.innerHTML === '<p>История пуста</p>') alert('Очищать нечего.');
+                else alert('История очищена');
             } catch (error) {
                 console.error('Error clearing history:', error);
             }
         });
     }
     
+    // Diary section
     function loadDiaryInterface() {
-        currentDiaryState = {step: 'menu', selectedEmoji: null, selectedMood: null}
-        showDiaryMenu();
-
-        fetch(`${API_BASE}/api/mood/entries/${sessionId}?limit=1&days=365`)
-        .then(response => response.json())
-        .then(data => {
-            const entryCount = data.entries.length;
-            const viewButton = document.getElementById('diary-view');
-            if (viewButton && entryCount > 0) {
-                viewButton.querySelector('h3').textContent = 'Посмотреть записи';
-            }
-        })
-        .catch(err => console.log('Could not fetch entry count, ' + err));
+        console.log('Diary section loaded');
     }
     
-    const MOODS = {
-        "😊": "весёлое",
-        "🙂": "нейтральное",
-        "😢": "грустное",
-        "😡": "злое",
-        "😴": "уставшее",
-        "😌": "в спокойствии",
-    };
-
-    const EMOJI_KEYBOARD = [
-        ['😊', '🙂', '😢'],
-        ['😡', '😴', '😌']
-    ];
-
     mainButtons.forEach(button => {
         button.addEventListener('click', function() {
             const targetId = this.getAttribute('data-target');
@@ -492,86 +507,119 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    const surveyClose = document.getElementById('survey-close');
-    if (surveyClose) {
-        surveyClose.addEventListener('click', returnToMain);
-    }
-
     attachAdviceButtonListeners();
-    attachDiaryMenuListeners();
+
+    let currentDiaryState = {
+        step: 'menu',
+        selectedEmoji: null,
+        selectedMood: null
+    };
+
+    const MOODS = {
+        "😊": "весёлое",
+        "🙂": "нейтральное",
+        "😢": "грустное",
+        "😡": "злое",
+        "😴": "уставшее",
+        "😌": "в спокойствии",
+    };
+
+    const EMOJI_KEYBOARD = [
+        ['😊', '🙂', '😢'],
+        ['😡', '😴', '😌']
+    ];
+
+    function loadDiaryInterface() {
+        currentDiaryState = {step: 'menu', selectedEmoji: null, selectedMood: null}
+        showDiaryMenu();
+
+        fetch(`${API_BASE}/api/mood/entries/${sessionId}?limit=1&days=365`)
+        .then(response => response.json())
+        .then(data => {
+            const entryCount = data.entries.length;
+            const viewButton = document.getElementById('diary-view');
+            if (viewButton && entryCount > 0) {
+                viewButton.textContent = `Посмотреть записи 📖`;
+            }
+        })
+        .catch(err => console.log(`Could not fetch entry count, ${err}`));
+    }
 
     function showDiaryMenu() {
         const diarySection = document.getElementById('diary-section');
-        const diaryGrid = diarySection.querySelector('.grid');
-        const diaryContentView = diarySection.querySelector('#diary-content-view');
         
-        if (diaryGrid) {
-            diaryGrid.classList.remove('hidden');
-        }
-        if (diaryContentView) {
-            diaryContentView.classList.add('hidden');
-        }
+        diarySection.innerHTML = `
+            <button id="diary-log">Записать настроение ✍️</button>
+            <button id="diary-view">Посмотреть записи 📖</button>
+            <button id="diary-statistics">Статистика 📊</button>
+            <button id="diary-analysis">Анализ настроения 🧠</button>
+            <button id="diary-advice">Совет по настроению ✨</button>
+            <button id="diary-reminders">Напоминания ⏰</button>
+            <button id="diary-back" class="back">Назад ◀️</button>
+        `;
         
+        attachDiaryMenuListeners();
         currentDiaryState.step = 'menu';
     }
     
     function attachDiaryMenuListeners() {
         document.getElementById('diary-log')?.addEventListener('click', () => {
-            showEmojiSelection();
+            fadeAndShow(showEmojiSelection);
         });
         document.getElementById('diary-view')?.addEventListener('click', () => {
-            loadDiaryEntries();
+            fadeAndShow(loadDiaryEntries);
         });
         document.getElementById('diary-statistics')?.addEventListener('click', () => {
-            showDiaryStatistics();
+            fadeAndShow(showDiaryStatistics);
         });
         document.getElementById('diary-analysis')?.addEventListener('click', () => {
-            analyzeDiary();
+            fadeAndShow(analyzeDiary);
         });
         document.getElementById('diary-advice')?.addEventListener('click', () => {
-            getDiaryAdvice();
+            fadeAndShow(getDiaryAdvice);
         });
         document.getElementById('diary-reminders')?.addEventListener('click', () => {
-            showRemindersMenu();
+            fadeAndShow(showRemindersMenu);
         });
         document.getElementById('diary-back')?.addEventListener('click', returnToMain);
     }
 
+    function fadeAndShow(callback) {
+        const diarySection = document.getElementById('diary-section');
+        diarySection.classList.remove('fade-in');
+        diarySection.classList.add('fade-out');
+        
+        setTimeout(() => {
+            callback();
+            diarySection.classList.remove('fade-out');
+            diarySection.classList.add('fade-in');
+        }, 150);
+    }
+
     function showEmojiSelection() {
         const diarySection = document.getElementById('diary-section');
-        const diaryGrid = diarySection.querySelector('.grid');
         
-        let emojiHtml = '<div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">';
-        emojiHtml += '<div class="card-body p-8 text-center">';
-        emojiHtml += '<h3 class="text-2xl font-bold mb-8">Выберите ваше настроение:</h3>';
-        emojiHtml += '<div class="flex flex-col gap-6 items-center mb-8">';
+        let emojiHtml = `
+            <div class="text-center p-6">
+                <h3 class="text-xl font-semibold text-primary mb-6">Выберите ваше настроение:</h3>
+                <div class="flex flex-col gap-4 items-center mb-6">
+        `;
         
         EMOJI_KEYBOARD.forEach(row => {
-            emojiHtml += '<div class="flex gap-6">';
+            emojiHtml += '<div class="flex gap-4">';
             row.forEach(emoji => {
-                emojiHtml += '<button class="btn btn-circle btn-lg text-5xl hover:scale-125 transition-transform shadow-sm" data-emoji="' + emoji + '">' + emoji + '</button>';
+                emojiHtml += `<button class="btn btn-circle btn-lg text-4xl hover:scale-110 transition-transform" data-emoji="${emoji}">${emoji}</button>`;
             });
             emojiHtml += '</div>';
         });
         
-        emojiHtml += '</div>';
-        emojiHtml += '<button id="emoji-back" class="btn btn-ghost gap-2"><i class="ti ti-arrow-left"></i> Назад</button>';
-        emojiHtml += '</div></div>';
+        emojiHtml += `
+                </div>
+                <button id="emoji-back" class="btn btn-ghost">◀️ Назад</button>
+            </div>
+        `;
         
-        if (diaryGrid) {
-            diaryGrid.classList.add('hidden');
-        }
-        
-        const existingContent = diarySection.querySelector('#diary-content-view');
-        if (existingContent) {
-            existingContent.innerHTML = emojiHtml;
-            existingContent.classList.remove('hidden');
-        } else {
-            const contentDiv = document.createElement('div');
-            contentDiv.id = 'diary-content-view';
-            contentDiv.innerHTML = emojiHtml;
-            diarySection.appendChild(contentDiv);
-        }
+        diarySection.innerHTML = emojiHtml;
         
         document.querySelectorAll('[data-emoji]').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -583,7 +631,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         document.getElementById('emoji-back').addEventListener('click', () => {
-            showDiaryMenu();
+            fadeAndShow(showDiaryMenu);
         });
         
         currentDiaryState.step = 'emoji';
@@ -592,27 +640,18 @@ document.addEventListener('DOMContentLoaded', function() {
     function showNoteInput() {
         const diarySection = document.getElementById('diary-section');
         
-        let noteHtml = '<div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">';
-        noteHtml += '<div class="card-body p-8 text-center">';
-        noteHtml += '<h3 class="text-2xl font-bold mb-6">Вы выбрали: ' + currentDiaryState.selectedEmoji + ' (' + currentDiaryState.selectedMood + ')</h3>';
-        noteHtml += '<p class="mb-6 text-base-content/70 text-lg">Хотите добавить комментарий?</p>';
-        noteHtml += '<textarea id="diary-note" placeholder="Напишите ваш комментарий здесь..." rows="6" class="textarea textarea-bordered textarea-lg w-full min-h-[150px] mb-6"></textarea>';
-        noteHtml += '<div class="flex gap-4 justify-center mb-6">';
-        noteHtml += '<button id="note-skip" class="btn btn-secondary gap-2"><i class="ti ti-player-skip-forward"></i> Пропустить</button>';
-        noteHtml += '<button id="note-save" class="btn btn-primary gap-2"><i class="ti ti-device-floppy"></i> Сохранить</button>';
-        noteHtml += '</div>';
-        noteHtml += '<button id="note-back" class="btn btn-ghost gap-2"><i class="ti ti-arrow-left"></i> Выбрать другой смайлик</button>';
-        noteHtml += '</div></div>';
-        
-        const existingContent = diarySection.querySelector('#diary-content-view');
-        if (existingContent) {
-            existingContent.innerHTML = noteHtml;
-        } else {
-            const contentDiv = document.createElement('div');
-            contentDiv.id = 'diary-content-view';
-            contentDiv.innerHTML = noteHtml;
-            diarySection.appendChild(contentDiv);
-        }
+        diarySection.innerHTML = `
+            <div class="p-6 text-center">
+                <h3 class="text-xl font-semibold text-primary mb-4">Вы выбрали: ${currentDiaryState.selectedEmoji} (${currentDiaryState.selectedMood})</h3>
+                <p class="mb-4">Хотите добавить комментарий?</p>
+                <textarea id="diary-note" placeholder="Напишите ваш комментарий здесь..." rows="6" class="textarea textarea-bordered w-full min-h-[150px] mb-4"></textarea>
+                <div class="flex gap-3 justify-center mb-4">
+                    <button id="note-skip" class="btn btn-secondary">Пропустить ⏭️</button>
+                    <button id="note-save" class="btn btn-primary">Сохранить 💾</button>
+                </div>
+                <button id="note-back" class="btn btn-ghost">◀️ Выбрать другой смайлик</button>
+            </div>
+        `;
         
         const diaryNote = document.getElementById('diary-note');
         if (diaryNote) {
@@ -632,7 +671,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         document.getElementById('note-back').addEventListener('click', () => {
-            showEmojiSelection();
+            fadeAndShow(showEmojiSelection);
         });
         
         currentDiaryState.step = 'note';
@@ -653,7 +692,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             
             if (data.success) {
-                showSuccessMessage('<i class="ti ti-circle-check text-success"></i> Запись сохранена!');
+                showSuccessMessage('Запись сохранена! 🌸');
             } else {
                 showErrorMessage('Ошибка при сохранении');
             }
@@ -666,48 +705,34 @@ document.addEventListener('DOMContentLoaded', function() {
     function showSuccessMessage(message) {
         const diarySection = document.getElementById('diary-section');
         
-        let msgHtml = '<div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">';
-        msgHtml += '<div class="card-body p-8 text-center">';
-        msgHtml += '<div class="alert alert-success mb-6 shadow-sm"><span class="text-lg">' + message + '</span></div>';
-        msgHtml += '<button id="message-back" class="btn btn-ghost gap-2"><i class="ti ti-arrow-left"></i> В меню дневника</button>';
-        msgHtml += '</div></div>';
-        
-        const existingContent = diarySection.querySelector('#diary-content-view');
-        if (existingContent) {
-            existingContent.innerHTML = msgHtml;
-        } else {
-            const contentDiv = document.createElement('div');
-            contentDiv.id = 'diary-content-view';
-            contentDiv.innerHTML = msgHtml;
-            diarySection.appendChild(contentDiv);
-        }
+        diarySection.innerHTML = `
+            <div class="text-center p-6">
+                <div class="alert alert-success mb-4">
+                    <span>${message}</span>
+                </div>
+                <button id="message-back" class="btn btn-ghost">◀️ В меню дневника</button>
+            </div>
+        `;
         
         document.getElementById('message-back').addEventListener('click', () => {
-            showDiaryMenu();
+            fadeAndShow(showDiaryMenu);
         });
     }
 
     function showErrorMessage(message) {
         const diarySection = document.getElementById('diary-section');
         
-        let msgHtml = '<div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">';
-        msgHtml += '<div class="card-body p-8 text-center">';
-        msgHtml += '<div class="alert alert-error mb-6 shadow-sm"><span class="text-lg"><i class="ti ti-alert-circle"></i> ' + message + '</span></div>';
-        msgHtml += '<button id="message-back" class="btn btn-ghost gap-2"><i class="ti ti-arrow-left"></i> В меню дневника</button>';
-        msgHtml += '</div></div>';
-        
-        const existingContent = diarySection.querySelector('#diary-content-view');
-        if (existingContent) {
-            existingContent.innerHTML = msgHtml;
-        } else {
-            const contentDiv = document.createElement('div');
-            contentDiv.id = 'diary-content-view';
-            contentDiv.innerHTML = msgHtml;
-            diarySection.appendChild(contentDiv);
-        }
+        diarySection.innerHTML = `
+            <div class="text-center p-6">
+                <div class="alert alert-error mb-4">
+                    <span>❌ ${message}</span>
+                </div>
+                <button id="message-back" class="btn btn-ghost">◀️ В меню дневника</button>
+            </div>
+        `;
         
         document.getElementById('message-back').addEventListener('click', () => {
-            showDiaryMenu();
+            fadeAndShow(showDiaryMenu);
         });
     }
 
@@ -717,20 +742,18 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             
             const diarySection = document.getElementById('diary-section');
-            const diaryGrid = diarySection.querySelector('.grid');
-            
-            if (diaryGrid) {
-                diaryGrid.classList.add('hidden');
-            }
-            
-            let entriesHtml;
             
             if (!data.entries || data.entries.length === 0) {
-                entriesHtml = '<div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden"><div class="card-body p-8 text-center"><p class="mb-6 text-xl text-base-content/60">Записей пока нет</p><button id="entries-back" class="btn btn-ghost gap-2"><i class="ti ti-arrow-left"></i> Назад</button></div></div>';
+                diarySection.innerHTML = `
+                    <div class="text-center p-6">
+                        <p class="mb-4">Записей пока нет 🌼</p>
+                        <button id="entries-back" class="btn btn-ghost">◀️ Назад</button>
+                    </div>
+                `;
             } else {
-                entriesHtml = '<div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden"><div class="card-body p-6"><h3 class="text-2xl font-bold mb-6 text-center">Ваши записи:</h3><div class="space-y-4 max-h-[600px] overflow-y-auto">';
+                let entriesHtml = '<div class="max-h-[500px] overflow-y-auto p-4"><h3 class="text-xl font-semibold text-primary text-center mb-4">Ваши записи:</h3>';
                 
-                data.entries.reverse().forEach((entry, index) => {
+                data.entries.reverse().forEach(entry => {
                     const date = new Date(entry.created_at).toLocaleString('ru-RU', {
                         day: '2-digit',
                         month: 'long',
@@ -739,34 +762,24 @@ document.addEventListener('DOMContentLoaded', function() {
                         minute: '2-digit'
                     });
                     
-                    entriesHtml += '<div class="bg-base-200 rounded-xl p-6 hover:shadow-md transition-shadow border border-base-300">';
-                    entriesHtml += '<div class="flex items-start justify-between mb-4">';
-                    entriesHtml += '<div class="flex items-center gap-3">';
-                    entriesHtml += '<div class="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-2xl shadow-sm">' + entry.emoji + '</div>';
-                    entriesHtml += '<div><div class="font-semibold text-primary">' + entry.mood_state + '</div>';
-                    entriesHtml += '<div class="text-sm text-base-content/60">' + date + '</div></div></div>';
-                    if (entry.note) {
-                        entriesHtml += '</div><div class="text-base-content/80 italic pt-4 border-t border-dashed border-base-content/30">' + entry.note;
-                    }
-                    entriesHtml += '</div></div>';
+                    entriesHtml += `
+                        <div class="card bg-base-200 shadow-md hover:shadow-lg transition-shadow p-5 mb-4">
+                            <div class="flex justify-between items-center mb-3">
+                                <span class="text-3xl">${entry.emoji}</span>
+                                <span class="text-sm text-base-content/60">${date}</span>
+                            </div>
+                            <div class="font-semibold text-primary mb-2">${entry.mood_state}</div>
+                            ${entry.note ? `<div class="text-base-content/80 italic pt-3 border-t border-dashed border-base-content/30">${entry.note}</div>` : ''}
+                        </div>
+                    `;
                 });
                 
-                entriesHtml += '</div><div class="text-center mt-6"><button id="entries-back" class="btn btn-ghost gap-2"><i class="ti ti-arrow-left"></i> Назад</button></div></div></div>';
-            }
-            
-            const existingContent = diarySection.querySelector('#diary-content-view');
-            if (existingContent) {
-                existingContent.innerHTML = entriesHtml;
-                existingContent.classList.remove('hidden');
-            } else {
-                const contentDiv = document.createElement('div');
-                contentDiv.id = 'diary-content-view';
-                contentDiv.innerHTML = entriesHtml;
-                diarySection.appendChild(contentDiv);
+                entriesHtml += `<button id="entries-back" class="btn btn-ghost">◀️ Назад</button></div>`;
+                diarySection.innerHTML = entriesHtml;
             }
             
             document.getElementById('entries-back').addEventListener('click', () => {
-                showDiaryMenu();
+                fadeAndShow(showDiaryMenu);
             });
             
         } catch (error) {
@@ -777,29 +790,16 @@ document.addEventListener('DOMContentLoaded', function() {
 
     async function showDiaryStatistics() {
         const diarySection = document.getElementById('diary-section');
-        const diaryGrid = diarySection.querySelector('.grid');
         
-        if (diaryGrid) {
-            diaryGrid.classList.add('hidden');
-        }
-        
-        let statsHtml = '<div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">';
-        statsHtml += '<div class="card-body p-8">';
-        statsHtml += '<h3 class="text-2xl font-bold mb-6 text-center">Статистика настроения</h3>';
-        statsHtml += '<div id="chart-container" class="text-center min-h-[300px]"><p class="text-base-content/60 italic p-8">Загрузка графика...</p></div>';
-        statsHtml += '<button id="stats-back" class="btn btn-ghost gap-2 mt-6"><i class="ti ti-arrow-left"></i> Назад</button>';
-        statsHtml += '</div></div>';
-        
-        const existingContent = diarySection.querySelector('#diary-content-view');
-        if (existingContent) {
-            existingContent.innerHTML = statsHtml;
-            existingContent.classList.remove('hidden');
-        } else {
-            const contentDiv = document.createElement('div');
-            contentDiv.id = 'diary-content-view';
-            contentDiv.innerHTML = statsHtml;
-            diarySection.appendChild(contentDiv);
-        }
+        diarySection.innerHTML = `
+            <div class="p-6">
+                <h3 class="text-xl font-semibold text-primary text-center mb-4">Статистика настроения</h3>
+                <div id="chart-container" class="text-center min-h-[300px]">
+                    <p class="text-base-content/60 italic p-8">Загрузка графика... 📊</p>
+                </div>
+                <button id="stats-back" class="btn btn-ghost">◀️ Назад</button>
+            </div>
+        `;
         
         try {
             const chartResponse = await fetch(`${API_BASE}/api/mood/chart/${sessionId}`);
@@ -808,47 +808,39 @@ document.addEventListener('DOMContentLoaded', function() {
                 const chartBlob = await chartResponse.blob();
                 const chartUrl = URL.createObjectURL(chartBlob);
                 
-                document.getElementById('chart-container').innerHTML = '<img src="' + chartUrl + '" alt="Mood Statistics Chart" class="max-w-full rounded-lg shadow-sm">';
+                document.getElementById('chart-container').innerHTML = `
+                    <img src="${chartUrl}" alt="Mood Statistics Chart" class="max-w-full rounded-lg">
+                `;
             } else {
                 const entriesResponse = await fetch(`${API_BASE}/api/mood/entries/${sessionId}?days=7`);
                 const entriesData = await entriesResponse.json();
                 
-                document.getElementById('chart-container').innerHTML = '<div class="text-center"><p class="mb-4 text-lg">За последнюю неделю у вас записей: <span class="font-bold text-primary">' + entriesData.entries.length + '</span></p><p class="text-base-content/60 mt-4 text-lg">Недостаточно данных для построения графика</p></div>';
+                document.getElementById('chart-container').innerHTML = `
+                    <p class="mb-4">За последнюю неделю у вас записей: ${entriesData.entries.length}</p>
+                    <p class="text-base-content/60 mt-4">Недостаточно данных для построения графика 🌱</p>
+                `;
             }
         } catch (error) {
             console.error('Error loading chart:', error);
-            document.getElementById('chart-container').innerHTML = '<p class="text-error text-center text-lg">Ошибка при загрузке статистики</p>';
+            document.getElementById('chart-container').innerHTML = `
+                <p>Ошибка при загрузке статистики</p>
+            `;
         }
         
         document.getElementById('stats-back').addEventListener('click', () => {
-            showDiaryMenu();
+            fadeAndShow(showDiaryMenu);
         });
     }
 
     async function analyzeDiary() {
         const diarySection = document.getElementById('diary-section');
-        const diaryGrid = diarySection.querySelector('.grid');
         
-        if (diaryGrid) {
-            diaryGrid.classList.add('hidden');
-        }
-        
-        let analysisHtml = '<div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">';
-        analysisHtml += '<div class="card-body p-8 text-center">';
-        analysisHtml += '<h3 class="text-2xl font-bold mb-6">Анализ настроения</h3>';
-        analysisHtml += '<p class="text-base-content/60 italic text-center p-8 text-lg">Анализирую ваши записи...</p>';
-        analysisHtml += '</div></div>';
-        
-        const existingContent = diarySection.querySelector('#diary-content-view');
-        if (existingContent) {
-            existingContent.innerHTML = analysisHtml;
-            existingContent.classList.remove('hidden');
-        } else {
-            const contentDiv = document.createElement('div');
-            contentDiv.id = 'diary-content-view';
-            contentDiv.innerHTML = analysisHtml;
-            diarySection.appendChild(contentDiv);
-        }
+        diarySection.innerHTML = `
+            <div class="p-6">
+                <h3 class="text-xl font-semibold text-primary text-center mb-4">Анализ настроения</h3>
+                <p class="text-base-content/60 italic text-center p-8">Анализирую ваши записи... 🧠</p>
+            </div>
+        `;
         
         try {
             const response = await fetch(`${API_BASE}/api/mood/analyze/${sessionId}`, {
@@ -856,60 +848,37 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             const data = await response.json();
             
-            analysisHtml = '<div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">';
-            analysisHtml += '<div class="card-body p-8">';
-            analysisHtml += '<h3 class="text-2xl font-bold mb-6 text-center">Анализ настроения</h3>';
-            analysisHtml += '<div class="bg-base-200 rounded-xl p-6 mb-6 whitespace-pre-wrap text-base-content/80 leading-relaxed">' + data.analysis + '</div>';
-            analysisHtml += '<button id="analysis-back" class="btn btn-ghost gap-2"><i class="ti ti-arrow-left"></i> Назад</button>';
-            analysisHtml += '</div></div>';
-            
-            const existingContent2 = diarySection.querySelector('#diary-content-view');
-            if (existingContent2) {
-                existingContent2.innerHTML = analysisHtml;
-            }
+            diarySection.innerHTML = `
+                <div class="p-6">
+                    <h3 class="text-xl font-semibold text-primary text-center mb-4">Анализ настроения</h3>
+                    <div class="bg-base-200 rounded-lg p-6 mb-4 whitespace-pre-wrap">${data.analysis}</div>
+                    <button id="analysis-back" class="btn btn-ghost">◀️ Назад</button>
+                </div>
+            `;
         } catch (error) {
-            analysisHtml = '<div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">';
-            analysisHtml += '<div class="card-body p-8 text-center">';
-            analysisHtml += '<h3 class="text-2xl font-bold mb-6 text-error">Ошибка</h3>';
-            analysisHtml += '<p class="text-center text-error text-lg">Не удалось выполнить анализ</p>';
-            analysisHtml += '<button id="analysis-back" class="btn btn-ghost gap-2 mt-6"><i class="ti ti-arrow-left"></i> Назад</button>';
-            analysisHtml += '</div></div>';
-            
-            const existingContent2 = diarySection.querySelector('#diary-content-view');
-            if (existingContent2) {
-                existingContent2.innerHTML = analysisHtml;
-            }
+            diarySection.innerHTML = `
+                <div class="p-6">
+                    <h3 class="text-xl font-semibold text-primary text-center mb-4">Ошибка</h3>
+                    <p class="text-center">Не удалось выполнить анализ</p>
+                    <button id="analysis-back" class="btn btn-ghost">◀️ Назад</button>
+                </div>
+            `;
         }
         
         document.getElementById('analysis-back')?.addEventListener('click', () => {
-            showDiaryMenu();
+            fadeAndShow(showDiaryMenu);
         });
     }
 
     async function getDiaryAdvice() {
         const diarySection = document.getElementById('diary-section');
-        const diaryGrid = diarySection.querySelector('.grid');
         
-        if (diaryGrid) {
-            diaryGrid.classList.add('hidden');
-        }
-        
-        let adviceHtml = '<div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">';
-        adviceHtml += '<div class="card-body p-8 text-center">';
-        adviceHtml += '<h3 class="text-2xl font-bold mb-6">Совет по настроению</h3>';
-        adviceHtml += '<p class="text-base-content/60 italic text-center p-8 text-lg">Думаю над советом...</p>';
-        adviceHtml += '</div></div>';
-        
-        const existingContent = diarySection.querySelector('#diary-content-view');
-        if (existingContent) {
-            existingContent.innerHTML = adviceHtml;
-            existingContent.classList.remove('hidden');
-        } else {
-            const contentDiv = document.createElement('div');
-            contentDiv.id = 'diary-content-view';
-            contentDiv.innerHTML = adviceHtml;
-            diarySection.appendChild(contentDiv);
-        }
+        diarySection.innerHTML = `
+            <div class="p-6">
+                <h3 class="text-xl font-semibold text-primary text-center mb-4">Совет по настроению</h3>
+                <p class="text-base-content/60 italic text-center p-8">Думаю над советом... ✨</p>
+            </div>
+        `;
         
         try {
             const response = await fetch(`${API_BASE}/api/mood/advice/${sessionId}`, {
@@ -917,66 +886,45 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             const data = await response.json();
             
-            adviceHtml = '<div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">';
-            adviceHtml += '<div class="card-body p-8">';
-            adviceHtml += '<h3 class="text-2xl font-bold mb-6 text-center">Совет по настроению</h3>';
-            adviceHtml += '<div class="bg-base-200 rounded-xl p-6 mb-6 whitespace-pre-wrap text-base-content/80 leading-relaxed">' + data.advice + '</div>';
-            adviceHtml += '<button id="mood-advice-back" class="btn btn-ghost gap-2"><i class="ti ti-arrow-left"></i> Назад</button>';
-            adviceHtml += '</div></div>';
-            
-            const existingContent2 = diarySection.querySelector('#diary-content-view');
-            if (existingContent2) {
-                existingContent2.innerHTML = adviceHtml;
-            }
+            diarySection.innerHTML = `
+                <div class="p-6">
+                    <h3 class="text-xl font-semibold text-primary text-center mb-4">Совет по настроению</h3>
+                    <div class="bg-base-200 rounded-lg p-6 mb-4 whitespace-pre-wrap">${data.advice}</div>
+                    <button id="mood-advice-back" class="btn btn-ghost">◀️ Назад</button>
+                </div>
+            `;
         } catch (error) {
-            adviceHtml = '<div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">';
-            adviceHtml += '<div class="card-body p-8 text-center">';
-            adviceHtml += '<h3 class="text-2xl font-bold mb-6 text-error">Ошибка</h3>';
-            adviceHtml += '<p class="text-center text-error text-lg">Не удалось получить совет</p>';
-            adviceHtml += '<button id="mood-advice-back" class="btn btn-ghost gap-2 mt-6"><i class="ti ti-arrow-left"></i> Назад</button>';
-            adviceHtml += '</div></div>';
-            
-            const existingContent2 = diarySection.querySelector('#diary-content-view');
-            if (existingContent2) {
-                existingContent2.innerHTML = adviceHtml;
-            }
+            diarySection.innerHTML = `
+                <div class="p-6">
+                    <h3 class="text-xl font-semibold text-primary text-center mb-4">Ошибка</h3>
+                    <p class="text-center">Не удалось получить совет</p>
+                    <button id="mood-advice-back" class="btn btn-ghost">◀️ Назад</button>
+                </div>
+            `;
         }
         
         document.getElementById('mood-advice-back')?.addEventListener('click', () => {
-            showDiaryMenu();
+            fadeAndShow(showDiaryMenu);
         });
     }
 
+    // Reminders menu
     function showRemindersMenu() {
         const diarySection = document.getElementById('diary-section');
-        const diaryGrid = diarySection.querySelector('.grid');
         
-        if (diaryGrid) {
-            diaryGrid.classList.add('hidden');
-        }
-        
-        let remindersHtml = '<div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">';
-        remindersHtml += '<div class="card-body p-8 text-center">';
-        remindersHtml += '<h3 class="text-2xl font-bold mb-8">Напоминания</h3>';
-        remindersHtml += '<div class="flex flex-col gap-4 max-w-md mx-auto">';
-        remindersHtml += '<button id="reminder-diary" class="btn btn-primary gap-3"><i class="ti ti-pencil"></i> Дневник</button>';
-        remindersHtml += '<button id="reminder-meditation" class="btn btn-primary gap-3"><i class="ti ti-flower"></i> Медитация</button>';
-        remindersHtml += '<button id="reminder-water" class="btn btn-primary gap-3"><i class="ti ti-droplet"></i> Пить воду</button>';
-        remindersHtml += '<button id="reminder-sleep" class="btn btn-primary gap-3"><i class="ti ti-bed"></i> Сон</button>';
-        remindersHtml += '<button id="reminder-stretch" class="btn btn-primary gap-3"><i class="ti ti-stretching"></i> Разминка</button>';
-        remindersHtml += '<button id="reminders-back" class="btn btn-ghost gap-2"><i class="ti ti-arrow-left"></i> Назад</button>';
-        remindersHtml += '</div></div></div>';
-        
-        const existingContent = diarySection.querySelector('#diary-content-view');
-        if (existingContent) {
-            existingContent.innerHTML = remindersHtml;
-            existingContent.classList.remove('hidden');
-        } else {
-            const contentDiv = document.createElement('div');
-            contentDiv.id = 'diary-content-view';
-            contentDiv.innerHTML = remindersHtml;
-            diarySection.appendChild(contentDiv);
-        }
+        diarySection.innerHTML = `
+            <div class="p-6 text-center">
+                <h3 class="text-xl font-semibold text-primary mb-6">Напоминания ⏰</h3>
+                <div class="flex flex-col gap-3">
+                    <button id="reminder-diary" class="btn btn-primary">Дневник 📝</button>
+                    <button id="reminder-meditation" class="btn btn-primary">Медитация 🧘</button>
+                    <button id="reminder-water" class="btn btn-primary">Пить воду 💧</button>
+                    <button id="reminder-sleep" class="btn btn-primary">Сон 😴</button>
+                    <button id="reminder-stretch" class="btn btn-primary">Разминка 🤸</button>
+                    <button id="reminders-back" class="btn btn-ghost">◀️ Назад</button>
+                </div>
+            </div>
+        `;
         
         document.getElementById('reminder-diary')?.addEventListener('click', () => {
             showTimeSelection('diary');
@@ -999,7 +947,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         document.getElementById('reminders-back').addEventListener('click', () => {
-            showDiaryMenu();
+            fadeAndShow(showRemindersMenu);
         });
     }
 
@@ -1008,26 +956,19 @@ document.addEventListener('DOMContentLoaded', function() {
         
         let hours = '';
         for (let i = 8; i <= 22; i++) {
-            hours += '<button class="btn btn-outline" data-time="' + i + ':00">' + i + ':00</button>';
+            hours += `<button class="btn btn-outline btn-sm" data-time="${i}:00">${i}:00</button>`;
         }
         
-        let timeHtml = '<div class="card bg-base-100 shadow-sm border border-base-300 overflow-hidden">';
-        timeHtml += '<div class="card-body p-8 text-center">';
-        timeHtml += '<h3 class="text-2xl font-bold mb-4">Выберите время для напоминания:</h3>';
-        timeHtml += '<p class="text-base-content/60 text-sm mb-6">В это время мы отправим Вам уведомление</p>';
-        timeHtml += '<div class="grid grid-cols-3 md:grid-cols-5 gap-3 max-w-2xl mx-auto mb-6">' + hours + '</div>';
-        timeHtml += '<button id="time-back" class="btn btn-ghost gap-2"><i class="ti ti-arrow-left"></i> Назад</button>';
-        timeHtml += '</div></div>';
-        
-        const existingContent = diarySection.querySelector('#diary-content-view');
-        if (existingContent) {
-            existingContent.innerHTML = timeHtml;
-        } else {
-            const contentDiv = document.createElement('div');
-            contentDiv.id = 'diary-content-view';
-            contentDiv.innerHTML = timeHtml;
-            diarySection.appendChild(contentDiv);
-        }
+        diarySection.innerHTML = `
+            <div class="p-6 text-center">
+                <h3 class="text-xl font-semibold text-primary mb-4">Выберите время для напоминания:</h3>
+                <p class="text-base-content/60 text-sm mb-6">В это время мы отправим Вам уведомление 🌿</p>
+                <div class="grid grid-cols-3 md:grid-cols-5 gap-3 max-w-lg mx-auto mb-6">
+                    ${hours}
+                </div>
+                <button id="time-back" class="btn btn-ghost">◀️ Назад</button>
+            </div>
+        `;
         
         document.querySelectorAll('[data-time]').forEach(btn => {
             btn.addEventListener('click', async () => {
@@ -1044,11 +985,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         })
                     });
                     
-                    showSuccessMessage('Напоминание установлено на ' + time);
+                    showSuccessMessage(`Напоминание установлено на ${time}`);
 
                     if (Notification.permission == 'granted') {
-                        new Notification('Напоминание установлено', {
-                            body: 'Мы напомним вам в ' + time,
+                        new Notification('✅ Напоминание установлено', {
+                            body: `Мы напомним вам в ${time}`,
                             icon: '/static/icon.png'
                         });
                     }
@@ -1059,7 +1000,60 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         
         document.getElementById('time-back').addEventListener('click', () => {
-            showRemindersMenu();
+            fadeAndShow(showRemindersMenu);
+        });
+    }
+
+    function showTimeSelection(reminderType) {
+        const diarySection = document.getElementById('diary-section');
+        
+        let hours = '';
+        for (let i = 8; i <= 22; i++) {
+            hours += `<button class="time-btn" data-time="${i}:00">${i}:00</button>`;
+        }
+        
+        diarySection.innerHTML = `
+            <div class="time-selection">
+                <h3>Выберите время для напоминания:</h3>
+                <p class="hint">В это время мы отправим Вам уведомление 🌿</p>
+                <div class="time-grid">
+                    ${hours}
+                </div>
+                <button id="time-back" class="back">◀️ Назад</button>
+            </div>
+        `;
+        
+        document.querySelectorAll('.time-btn').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const time = btn.dataset.time;
+                
+                try {
+                    await fetch(`${API_BASE}/api/reminders/set`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            session_id: sessionId,
+                            reminder_type: reminderType,
+                            time: time
+                        })
+                    });
+                    
+                    showSuccessMessage(`Напоминание установлено на ${time}`);
+
+                    if (Notification.permission == 'granted') {
+                        new Notification('✅ Напоминание установлено', {
+                            body: `Мы напомним вам в ${time}`,
+                            icon: '/static/icon.png'
+                        });
+                    }
+                } catch (error) {
+                    showErrorMessage('Ошибка при установке напоминания');
+                }
+            });
+        });
+        
+        document.getElementById('time-back').addEventListener('click', () => {
+            fadeAndShow(showRemindersMenu);
         });
     }
 
@@ -1092,13 +1086,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function getReminderTitle(type) {
         const titles = {
-            'diary': 'Дневник настроения',
-            'meditation': 'Медитация',
-            'drink_water': 'Напоминание',
-            'sleep_reminder': 'Сон',
-            'stretch': 'Разминка'
+            'diary': '📝 Дневник настроения',
+            'meditation': '🧘 Медитация',
+            'drink_water': '💧 Напоминание',
+            'sleep_reminder': '😴 Сон',
+            'stretch': '🤸 Разминка'
         };
-        return titles[type] || 'Напоминание';
+        return titles[type] || 'Напоминание 🌿';
     }
 
     function showInAppPopup(type, message) {
@@ -1108,22 +1102,34 @@ document.addEventListener('DOMContentLoaded', function() {
         const popup = document.createElement('div');
         popup.id = 'reminder-popup';
         popup.className = 'fixed top-5 right-5 w-80 z-50 opacity-0 translate-x-full transition-all duration-300';
-        popup.innerHTML = '<div class="alert alert-info shadow-lg"><div><span class="font-semibold">' + getReminderTitle(type) + '</span><span class="block text-sm">' + message + '</span></div><div class="flex gap-2"><button class="popup-btn-later btn btn-sm btn-ghost">Позже</button><button class="popup-btn-ok btn btn-sm btn-primary">Хорошо</button></div></div>';
+        popup.innerHTML = `
+            <div class="alert alert-info shadow-lg">
+                <div>
+                    <span class="font-semibold">${getReminderTitle(type)}</span>
+                    <span class="block text-sm">${message}</span>
+                </div>
+                <div class="flex gap-2">
+                    <button class="popup-btn-later btn btn-sm btn-ghost">Позже</button>
+                    <button class="popup-btn-ok btn btn-sm btn-primary">Хорошо</button>
+                </div>
+            </div>
+        `;
         
         document.body.appendChild(popup);
         setTimeout(() => {
             popup.classList.remove('opacity-0', 'translate-x-full');
         }, 10);
         
-        popup.querySelector('.popup-btn-later')?.addEventListener('click', () => {
+        popup.querySelector('.popup-close')?.addEventListener('click', () => closePopup(popup));
+        popup.querySelector('.popup-btn-later').addEventListener('click', () => {
             closePopup(popup);
             setTimeout(() => {
                 if (type === 'diary') {
-                    showNotification(type, 'Время записать своё настроение');
+                    showNotification(type, 'Время записать своё настроение 🌸');
                 }
             }, 15 * 60 * 1000);
         });
-        popup.querySelector('.popup-btn-ok')?.addEventListener('click', () => {
+        popup.querySelector('.popup-btn-ok').addEventListener('click', () => {
             closePopup(popup);
             if (type === 'diary') {
                 switchToSection('diary-section');
@@ -1133,31 +1139,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function closePopup(popup) {
-        popup.classList.add('opacity-0', 'translate-x-full');
+        popup.classList.remove('show');
         setTimeout(() => popup.remove(), 300);
-    }
-
-    function showInAppNotification(type, message) {
-        const notification = document.createElement('div');
-        notification.id = 'in-app-notification';
-        notification.className = 'fixed top-5 right-5 w-80 z-50 transition-all duration-300 opacity-0 translate-x-full';
-        
-        let alertClass = 'alert-info';
-        if (type === 'success') alertClass = 'alert-success';
-        if (type === 'error') alertClass = 'alert-error';
-        if (type === 'warning') alertClass = 'alert-warning';
-        
-        notification.innerHTML = '<div class="alert ' + alertClass + ' shadow-lg"><span>' + message + '</span></div>';
-        
-        document.body.appendChild(notification);
-        setTimeout(() => {
-            notification.classList.remove('opacity-0', 'translate-x-full');
-        }, 10);
-        
-        setTimeout(() => {
-            notification.classList.add('opacity-0', 'translate-x-full');
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
     }
 
     let surveyState = {
@@ -1255,6 +1238,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 'Моя жизнь была бы безрадостной, если бы не было Интернета.',
                 'Пребывание в Интернете негативно повлияло на мое физическое самочувствие.',
                 'Я стараюсь меньше тратить времени в Интернете, но безуспешно.',
+                'Для меня становится обычным спать меньше, чтобы провести больше времени в Интернете.',
                 'Мне необходимо проводить все больше времени в Интернете, чтобы получить то же удовлетворение, что и раньше.',
                 'Иногда у меня не получается поесть в нужное время из-за того, что я сижу в Интернете.',
                 'Я чувствую себя усталым днем из-за того, что просидел допоздна в Интернете.'
@@ -1262,6 +1246,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
+    // Survey section
     function loadSurveyInterface() {
         loadSurveyState();
         showRoleSelection();
@@ -1308,7 +1293,15 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         const surveyContent = document.getElementById('survey-content');
-        surveyContent.innerHTML = '<div class="text-center"><h2 class="text-3xl font-bold mb-8">Тестирование по трём шкалам</h2><div class="flex flex-col gap-4 items-center"><button id="role-teacher" class="btn btn-primary btn-lg w-full max-w-xs gap-3"><i class="ti ti-chalkboard-teacher"></i> Преподаватель</button><button id="role-student" class="btn btn-primary btn-lg w-full max-w-xs gap-3"><i class="ti ti-school"></i> Студент</button></div></div>';
+        surveyContent.innerHTML = `
+            <div class="text-center">
+                <h2 class="text-2xl font-bold text-primary mb-6">Тестирование по трём шкалам</h2>
+                <div class="flex flex-col gap-3 items-center mb-6">
+                    <button id="role-teacher" class="btn btn-primary w-64">Преподаватель</button>
+                    <button id="role-student" class="btn btn-primary w-64">Студент</button>
+                </div>
+            </div>
+        `;
         
         document.getElementById('role-teacher').addEventListener('click', () => {
             surveyState.role = 'teacher';
@@ -1327,23 +1320,34 @@ document.addEventListener('DOMContentLoaded', function() {
         const surveyContent = document.getElementById('survey-content');
 
         if (surveyState.completedSurveys.length === 3) {
-            surveyContent.innerHTML = '<div class="text-center"><h2 class="text-3xl font-bold mb-6">Тестирование по трём шкалам</h2><div class="alert alert-success mb-6 shadow-sm"><span class="text-lg"><i class="ti ti-circle-check"></i> Все опросы завершены! Спасибо за участие!</span></div></div>';
+            surveyContent.innerHTML = `
+                <div class="text-center">
+                    <h2 class="text-2xl font-bold text-primary mb-4">Тестирование по трём шкалам</h2>
+                    <div class="alert alert-success mb-4">
+                        <span>✅ Все опросы завершены! Спасибо за участие!</span>
+                    </div>
+                </div>
+            `;
             return;
         }
 
-        let surveysHtml = '<div class="text-center"><h2 class="text-3xl font-bold mb-8">Выберите опрос</h2><div class="flex flex-col gap-4 items-center">';
+        let surveysHtml = `
+            <div class="text-center">
+                <h2 class="text-2xl font-bold text-primary mb-6">Выберите опрос</h2>
+                <div class="flex flex-col gap-3 items-center">
+        `;
         
         if (!surveyState.completedSurveys.includes('surveyOne')) {
-            surveysHtml += '<button id="start-survey-one" class="btn btn-primary btn-lg w-full max-w-xs gap-3"><i class="ti ti-battery-eco"></i> Цифровая усталость</button>';
+            surveysHtml += `<button id="start-survey-one" class="btn btn-primary w-64">Цифровая усталость</button>`;
         }
         if (!surveyState.completedSurveys.includes('surveyTwo')) {
-            surveysHtml += '<button id="start-survey-two" class="btn btn-primary btn-lg w-full max-w-xs gap-3"><i class="ti ti-list"></i> Шкала Ликерта</button>';
+            surveysHtml += `<button id="start-survey-two" class="btn btn-primary w-64">Шкала Ликерта</button>`;
         }
         if (!surveyState.completedSurveys.includes('surveyThree')) {
-            surveysHtml += '<button id="start-survey-three" class="btn btn-primary btn-lg w-full max-w-xs gap-3"><i class="ti ti-clipboard-check"></i> Опросник Чена</button>';
+            surveysHtml += `<button id="start-survey-three" class="btn btn-primary w-64">Опросник Чена</button>`;
         }
         
-        surveysHtml += '</div></div>';
+        surveysHtml += `</div></div>`;
         surveyContent.innerHTML = surveysHtml;
         
         document.getElementById('start-survey-one')?.addEventListener('click', () => startSurvey('surveyOne'));
@@ -1378,15 +1382,25 @@ document.addEventListener('DOMContentLoaded', function() {
     function showSurveyQuestion() {
         const surveyContent = document.getElementById('survey-content');
         const question = surveyState.questionsList[surveyState.currentQuestionIndex];
-        const progress = (surveyState.currentQuestionIndex + 1) + '/' + surveyState.questionsList.length;
+        const progress = `${surveyState.currentQuestionIndex + 1}/${surveyState.questionsList.length}`;
         
-        surveyContent.innerHTML = '<div class="text-center"><h2 class="text-3xl font-bold mb-2">' + surveyQuestions[surveyState.currentSurvey].title + '</h2><div class="mb-6"><progress class="progress progress-primary w-full max-w-md mx-auto" value="' + (surveyState.currentQuestionIndex / surveyState.questionsList.length * 100) + '" max="100"></progress><div class="text-sm text-base-content/60 mt-2">Вопрос ' + progress + '</div></div><div class="mb-8"><div class="text-xl mb-8 font-medium">' + question + '</div><div class="flex justify-center gap-4 flex-wrap" id="rating-buttons"></div></div><button id="cancel-survey" class="btn btn-ghost gap-2"><i class="ti ti-arrow-left"></i> Назад к опросам</button></div>';
+        surveyContent.innerHTML = `
+            <div class="text-center">
+                <h2 class="text-2xl font-bold text-primary mb-2">${surveyQuestions[surveyState.currentSurvey].title}</h2>
+                <div class="text-sm text-base-content/60 mb-6">Вопрос ${progress}</div>
+                <div class="mb-6">
+                    <div class="text-lg mb-6">${question}</div>
+                    <div class="flex justify-center gap-3 flex-wrap" id="rating-buttons"></div>
+                </div>
+                <button id="cancel-survey" class="btn btn-ghost">◀️ Назад к опросам</button>
+            </div>
+        `;
         
         const ratingContainer = document.getElementById('rating-buttons');
         for (let i = 1; i <= 5; i++) {
             const btn = document.createElement('button');
             btn.textContent = i;
-            btn.className = 'btn btn-circle btn-lg btn-primary text-xl hover:scale-110 transition-transform';
+            btn.className = 'btn btn-circle btn-primary';
             btn.addEventListener('click', () => storeResponse(i));
             ratingContainer.appendChild(btn);
         }
@@ -1418,21 +1432,84 @@ document.addEventListener('DOMContentLoaded', function() {
 
         saveCompletedSurveys();
         
-        console.log('Responses for ' + surveyState.currentSurvey + ':', surveyState.responses[surveyState.currentSurvey]);
+        console.log(`Responses for ${surveyState.currentSurvey}:`, surveyState.responses[surveyState.currentSurvey]);
         
         const surveyContent = document.getElementById('survey-content');
         
         if (surveyState.completedSurveys.length === 3) {
-            surveyContent.innerHTML = '<div class="text-center"><h2 class="text-3xl font-bold mb-6">Тестирование по трём шкалам</h2><div class="alert alert-success mb-6 shadow-sm"><span class="text-lg"><i class="ti ti-circle-check"></i> Все опросы завершены! Спасибо за участие!</span></div></div>';
+            surveyContent.innerHTML = `
+                <div class="text-center">
+                    <h2 class="text-2xl font-bold text-primary mb-4">Тестирование по трём шкалам</h2>
+                    <div class="alert alert-success mb-4">
+                        <span>✅ Все опросы завершены! Спасибо за участие!</span>
+                    </div>
+                </div>
+            `;
         } else {
-            surveyContent.innerHTML = '<div class="text-center"><h2 class="text-3xl font-bold mb-4">' + surveyQuestions[surveyState.currentSurvey].title + '</h2><div class="alert alert-success mb-6 shadow-sm"><span class="text-lg"><i class="ti ti-circle-check"></i> Опрос завершен! Спасибо за ваши ответы!</span></div><button id="back-to-surveys" class="btn btn-ghost gap-2"><i class="ti ti-arrow-left"></i> К списку опросов</button></div>';
+            surveyContent.innerHTML = `
+                <div class="text-center">
+                    <h2 class="text-2xl font-bold text-primary mb-4">${surveyQuestions[surveyState.currentSurvey].title}</h2>
+                    <div class="alert alert-success mb-4">
+                        <span>✅ Опрос завершен! Спасибо за ваши ответы!</span>
+                    </div>
+                    <button id="back-to-surveys" class="btn btn-ghost">◀️ К списку опросов</button>
+                </div>
+            `;
             document.getElementById('back-to-surveys')?.addEventListener('click', () => {
                 showSurveySelection();
             });
         }
     }
 
+    function initSurveyFloatingButton() {
+        const floatingBtn = document.getElementById('survey-floating-btn');
+        if (floatingBtn) {
+            floatingBtn.addEventListener('click', () => {
+                switchToSection('survey-section');
+            });
+        }
+    }
+
+    function closeSurveySection() {
+        const surveySection = document.getElementById('survey-section');
+        surveySection.classList.remove('fade-in');
+        surveySection.classList.add('fade-out');
+        
+        setTimeout(() => {
+            const mainMenu = document.getElementById('main-buttons');
+            mainMenu.classList.remove('fade-out');
+            mainMenu.classList.add('fade-in');
+        }, 300);
+    }
+
+    function switchToSection(targetSectionId) {
+        mainMenu.classList.remove('fade-in');
+        mainMenu.classList.add('fade-out');
+        
+        sections.forEach(section => {
+            section.classList.remove('fade-in');
+            section.classList.add('fade-out');
+        });
+        
+        const targetSection = document.getElementById(targetSectionId);
+        setTimeout(() => {
+            targetSection.classList.remove('fade-out');
+            targetSection.classList.add('fade-in');
+            
+            if (targetSectionId === 'chat-section') {
+                loadChatInterface();
+            } else if (targetSectionId === 'history-section') {
+                loadHistory();
+            } else if (targetSectionId === 'diary-section') {
+                loadDiaryInterface();
+            } else if (targetSectionId === 'survey-section') {
+                loadSurveyInterface();
+            }
+        }, 50);
+    }
+
     loadSurveyState();
+    initSurveyFloatingButton();
 
     async function saveSurveyToDatabase(surveyKey, responses) {
         try {

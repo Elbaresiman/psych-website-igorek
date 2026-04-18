@@ -1,69 +1,447 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru" data-theme="pastel">
     <head>
         <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width" />
-        <link rel="stylesheet" href="/static/css.css" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+        <title>Игорёк - Психологическая поддержка</title>
         <link rel="icon" type="image/x-icon" href="/static/Martynov.ico" />
+        <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css" />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            tailwind.config = {
+                theme: {
+                    extend: {
+                        animation: {
+                            'fade-in': 'fadeIn 0.3s ease-out',
+                            'slide-up': 'slideUp 0.4s ease-out',
+                        },
+                        keyframes: {
+                            fadeIn: {
+                                '0%': { opacity: '0' },
+                                '100%': { opacity: '1' },
+                            },
+                            slideUp: {
+                                '0%': { opacity: '0', transform: 'translateY(20px)' },
+                                '100%': { opacity: '1', transform: 'translateY(0)' },
+                            }
+                        }
+                    }
+                }
+            }
+        </script>
+        <link rel="stylesheet" href="/static/css.css" />
         <script src="/static/script.js"></script>
     </head>
-    <body>
-        <h1>Бот-помощник для психологической поддержки</h1>
-        <h1>Игорёк</h1>
+    <body class="bg-base-100 min-h-screen">
+        <!-- Header -->
+        <header class="sticky top-0 z-50 bg-base-100 border-b border-base-300">
+            <div class="container mx-auto px-3 md:px-4 py-2 md:py-3 flex items-center justify-between">
+                <button id="logo-home" class="btn btn-ghost gap-2 text-lg md:text-xl font-bold text-base-content hover:bg-transparent">
+                    <i class="ti ti-robot text-xl md:text-2xl text-primary"></i>
+                    <span>Игорёк</span>
+                </button>
+                <button id="theme-toggle" class="btn btn-ghost btn-circle btn-sm md:btn-md" title="Переключить тему">
+                    <i id="theme-icon" class="ti ti-moon text-lg md:text-xl"></i>
+                </button>
+            </div>
+        </header>
         
-        <div id="survey-floating-btn" class="floating-survey-btn" style="display: block;">
-            Опросы 📊
-        </div>
-
-        <div class="button-container">
-            <div id="main-buttons" class="fade-in">
-                <button id="chat" data-target="chat-section" class="main">Пообщаться 💬</button>
-                <button id="advice" data-target="advice-section" class="main">Советы 🧘</button>
-                <button id="history" data-target="history-section" class="main">История 📖</button>
-                <button id="diary" data-target="diary-section" class="main">Дневник настроения 🌸</button>
-                <button id="help" data-target="help-section" class="main">Помощь 🆘</button>
-            </div>
-            
-            <div id="chat-section" class="section fade-out">
-            </div>
-            
-            <div id="advice-section" class="section fade-out">
-                <button id="advice-breathing">Техника дыхания 🌬️</button>
-                <button id="advice-method">Метод 5-4-3-2-1 🌿</button>
-                <button id="advice-meditation">Медитация 🧘</button>
-                <button id="advice-massage">Массаж 💆</button>
-                <button id="advice-help">Экспресс-помощь 🆘</button>
-                <button id="advice-back" class="back">Назад ◀️</button>
-            </div>
-            
-            <div id="history-section" class="section fade-out">
-                <div id="history-list"></div>
-                <button id="history-clean">Очистить историю 🧹</button>
-                <button id="history-back" class="back">Назад ◀️</button>
-            </div>
-            
-            <div id="diary-section" class="section fade-out">
-                <button id="diary-log">Записать настроение ✍️</button>
-                <button id="diary-view">Посмотреть записи 📖</button>
-                <button id="diary-statistics">Статистика 📊</button>
-                <button id="diary-analysis">Анализ настроения 🧠</button>
-                <button id="diary-advice">Совет по настроению ✨</button>
-                <button id="diary-reminders">Напоминания ⏰</button>
-                <button id="diary-back" class="back">Назад ◀️</button>
+        <!-- Main Content -->
+        <main class="container mx-auto px-3 md:px-4 py-4 md:py-6 max-w-6xl">
+            <!-- Floating Survey Button -->
+            <div id="survey-floating-btn" class="fixed bottom-5 right-5 w-12 h-12 md:w-14 md:h-14 rounded-full bg-primary text-white flex items-center justify-center shadow-lg hover:shadow-xl hover:bg-primary-focus transition-all cursor-pointer z-40">
+                <i class="ti ti-chart-bar text-lg md:text-xl"></i>
             </div>
 
-            <div id="survey-section" class="section fade-out">
-                <div id="survey-content" class="survey-container">
+            <!-- Main Menu -->
+            <div id="main-buttons" class="flex flex-col gap-4 md:gap-6 animate-fade-in">
+                <!-- Hero Banner -->
+                <div class="hero min-h-[180px] md:min-h-[280px] rounded-2xl bg-base-200 shadow-sm border border-base-300">
+                    <div class="hero-content text-center px-4 py-6">
+                        <div class="max-w-2xl">
+                            <h2 class="text-2xl md:text-4xl font-bold mb-3 md:mb-4 text-base-content">Привет! Я Игорёк</h2>
+                            <p class="text-sm md:text-lg mb-4 md:mb-6 text-base-content/60">Ваш персональный помощник для психологической поддержки</p>
+                            <button id="hero-chat-btn" data-target="chat-section" class="btn btn-primary btn-md md:btn-lg gap-2">
+                                <i class="ti ti-message-2 text-lg md:text-xl"></i>
+                                Начать общение
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <button id="survey-close" class="survey-close-btn" style="display: none;">X</button>
+
+                <!-- Feature Grid -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+                    <button id="diary" data-target="diary-section" class="group rounded-xl bg-primary/10 hover:bg-primary/15 border border-primary/20 hover:border-primary/40 shadow-sm hover:shadow-md transition-all">
+                        <div class="p-4 md:p-6 flex flex-col items-center gap-2 md:gap-3">
+                            <div class="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-primary/20 flex items-center justify-center group-hover:bg-primary/30 transition-colors">
+                                <i class="ti ti-flower text-2xl md:text-3xl text-primary"></i>
+                            </div>
+                            <div class="text-center">
+                                <h3 class="text-sm md:text-lg font-semibold mb-1">Дневник настроения</h3>
+                                <p class="text-xs md:text-sm text-base-content/60">Отслеживайте эмоции</p>
+                            </div>
+                        </div>
+                    </button>
+
+                    <button id="advice" data-target="advice-section" class="group rounded-xl bg-secondary/10 hover:bg-secondary/15 border border-secondary/20 hover:border-secondary/40 shadow-sm hover:shadow-md transition-all">
+                        <div class="p-4 md:p-6 flex flex-col items-center gap-2 md:gap-3">
+                            <div class="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-secondary/20 flex items-center justify-center group-hover:bg-secondary/30 transition-colors">
+                                <i class="ti ti-flower text-2xl md:text-3xl text-secondary"></i>
+                            </div>
+                            <div class="text-center">
+                                <h3 class="text-sm md:text-lg font-semibold mb-1">Техники</h3>
+                                <p class="text-xs md:text-sm text-base-content/60">Дыхание, медитация</p>
+                            </div>
+                        </div>
+                    </button>
+
+                    <button id="history" data-target="history-section" class="group rounded-xl bg-accent/10 hover:bg-accent/15 border border-accent/20 hover:border-accent/40 shadow-sm hover:shadow-md transition-all sm:col-span-2 md:col-span-1">
+                        <div class="p-4 md:p-6 flex flex-col items-center gap-2 md:gap-3">
+                            <div class="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-accent/20 flex items-center justify-center group-hover:bg-accent/30 transition-colors">
+                                <i class="ti ti-book text-2xl md:text-3xl text-accent"></i>
+                            </div>
+                            <div class="text-center">
+                                <h3 class="text-sm md:text-lg font-semibold mb-1">История бесед</h3>
+                                <p class="text-xs md:text-sm text-base-content/60">Прошлые разговоры</p>
+                            </div>
+                        </div>
+                    </button>
+                </div>
+
+                <!-- Help Banner -->
+                <button id="help" data-target="help-section" class="group rounded-xl bg-error/10 hover:bg-error/15 border border-error/20 hover:border-error/40 shadow-sm hover:shadow-md transition-all">
+                    <div class="p-4 md:p-6 flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 md:w-14 md:h-14 rounded-xl bg-error/10 flex items-center justify-center flex-shrink-0">
+                                <i class="ti ti-lifebuoy text-lg md:text-2xl text-error"></i>
+                            </div>
+                            <div class="text-left">
+                                <h3 class="text-sm md:text-base font-semibold text-error">Экстренная помощь</h3>
+                                <p class="text-xs md:text-sm text-base-content/60">Если вам срочно нужна поддержка</p>
+                            </div>
+                        </div>
+                        <i class="ti ti-arrow-right text-error opacity-0 group-hover:opacity-100 transition-opacity hidden md:block"></i>
+                    </div>
+                </button>
             </div>
             
-            <div id="help-section" class="section fade-out">
-                <p>📞 Телефон доверия: 8-800-2000-122 (бесплатно, круглосуточно)</p>
-                <p>👨⚕️ Личный специалист: +7 (918) 557-73-40</p>
-                <button id="help-back" class="back">Назад ◀️</button>
+            <!-- Chat Section -->
+            <div id="chat-section" class="section animate-fade-in hidden">
+                <div class="h-[calc(100vh-100px)] md:h-[calc(100vh-140px)]">
+                    <div class="card bg-base-100 shadow-sm h-full border border-base-300">
+                        <div class="card-body p-0 flex flex-col h-full">
+                            <!-- Chat Header -->
+                            <div class="flex items-center justify-between p-3 md:p-4 border-b border-base-300 bg-base-200">
+                                <div class="flex items-center gap-2 md:gap-3">
+                                    <div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                                        <i class="ti ti-robot text-base md:text-xl text-primary"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-semibold text-sm md:text-base">Игорёк</h3>
+                                        <div class="flex items-center gap-1">
+                                            <span class="w-1.5 h-1.5 md:w-2 md:h-2 rounded-full bg-success"></span>
+                                            <span class="text-xs text-success">Онлайн</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <button id="chat-exit" class="btn btn-ghost btn-circle btn-sm md:btn-md">
+                                    <i class="ti ti-x text-base md:text-xl"></i>
+                                </button>
+                            </div>
+                            
+                            <!-- Chat Messages -->
+                            <div class="flex-1 overflow-y-auto p-3 md:p-4 bg-base-100 space-y-3 md:space-y-4" id="chat-messages">
+                            </div>
+                            
+                            <!-- Chat Input -->
+                            <div class="p-3 md:p-4 border-t border-base-300 bg-base-100">
+                                <div class="flex gap-2">
+                                    <input type="text" id="chat-input" placeholder="Напишите сообщение..." class="input input-bordered input-sm md:input-md flex-1" />
+                                    <button id="chat-send" class="btn btn-primary gap-2 btn-sm md:btn-md">
+                                        <i class="ti ti-send"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
+            
+            <!-- Advice Section -->
+            <div id="advice-section" class="section animate-fade-in hidden">
+                <div class="mx-auto">
+                    <div class="mb-4 md:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div>
+                            <h2 class="text-xl md:text-3xl font-bold text-base-content">Техники</h2>
+                            <p class="text-sm md:text-base text-base-content/60">Выберите технику для расслабления</p>
+                        </div>
+                        <button id="advice-back" class="btn btn-ghost gap-2 btn-sm md:btn-md">
+                            <i class="ti ti-arrow-left"></i>
+                            Назад
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+                        <button id="advice-breathing" class="group rounded-xl bg-info/10 hover:bg-info/15 border border-info/20 hover:border-info/40 shadow-sm hover:shadow-md transition-all">
+                            <div class="p-4 md:p-6 flex flex-col items-center gap-2 md:gap-3">
+                                <div class="w-14 h-14 md:w-20 md:h-20 rounded-xl bg-info/20 flex items-center justify-center group-hover:bg-info/30 transition-colors">
+                                    <i class="ti ti-wind text-2xl md:text-4xl text-info"></i>
+                                </div>
+                                <div class="text-center">
+                                    <h3 class="text-sm md:text-lg font-semibold mb-1">Дыхание</h3>
+                                    <p class="text-xs md:text-sm text-base-content/60">Успокойте ум через дыхание</p>
+                                </div>
+                            </div>
+                        </button>
+
+                        <button id="advice-method" class="group rounded-xl bg-success/10 hover:bg-success/15 border border-success/20 hover:border-success/40 shadow-sm hover:shadow-md transition-all">
+                            <div class="p-4 md:p-6 flex flex-col items-center gap-2 md:gap-3">
+                                <div class="w-14 h-14 md:w-20 md:h-20 rounded-xl bg-success/20 flex items-center justify-center group-hover:bg-success/30 transition-colors">
+                                    <i class="ti ti-leaf text-2xl md:text-4xl text-success"></i>
+                                </div>
+                                <div class="text-center">
+                                    <h3 class="text-sm md:text-lg font-semibold mb-1">5-4-3-2-1</h3>
+                                    <p class="text-xs md:text-sm text-base-content/60">Заземление через 5 чувств</p>
+                                </div>
+                            </div>
+                        </button>
+
+                        <button id="advice-meditation" class="group rounded-xl bg-secondary/10 hover:bg-secondary/15 border border-secondary/20 hover:border-secondary/40 shadow-sm hover:shadow-md transition-all">
+                            <div class="p-4 md:p-6 flex flex-col items-center gap-2 md:gap-3">
+                                <div class="w-14 h-14 md:w-20 md:h-20 rounded-xl bg-secondary/20 flex items-center justify-center group-hover:bg-secondary/30 transition-colors">
+                                    <i class="ti ti-flower text-2xl md:text-3xl text-secondary"></i>
+                                </div>
+                                <div class="text-center">
+                                    <h3 class="text-sm md:text-lg font-semibold mb-1">Медитация</h3>
+                                    <p class="text-xs md:text-sm text-base-content/60">Практики осознанности</p>
+                                </div>
+                            </div>
+                        </button>
+
+                        <button id="advice-massage" class="group rounded-xl bg-warning/10 hover:bg-warning/15 border border-warning/20 hover:border-warning/40 shadow-sm hover:shadow-md transition-all">
+                            <div class="p-4 md:p-6 flex flex-col items-center gap-2 md:gap-3">
+                                <div class="w-14 h-14 md:w-20 md:h-20 rounded-xl bg-warning/20 flex items-center justify-center group-hover:bg-warning/30 transition-colors">
+                                    <i class="ti ti-hand-click text-2xl md:text-4xl text-warning"></i>
+                                </div>
+                                <div class="text-center">
+                                    <h3 class="text-sm md:text-lg font-semibold mb-1">Самомассаж</h3>
+                                    <p class="text-xs md:text-sm text-base-content/60">Техники расслабления тела</p>
+                                </div>
+                            </div>
+                        </button>
+
+                        <button id="advice-help" class="group rounded-xl bg-error/10 hover:bg-error/15 border border-error/20 hover:border-error/40 shadow-sm hover:shadow-md transition-all sm:col-span-2 lg:col-span-1">
+                            <div class="p-4 md:p-6 flex flex-col items-center gap-2 md:gap-3">
+                                <div class="w-14 h-14 md:w-20 md:h-20 rounded-xl bg-error/20 flex items-center justify-center group-hover:bg-error/30 transition-colors">
+                                    <i class="ti ti-alert-circle text-2xl md:text-4xl text-error"></i>
+                                </div>
+                                <div class="text-center">
+                                    <h3 class="text-sm md:text-lg font-semibold mb-1">Экспресс-помощь</h3>
+                                    <p class="text-xs md:text-sm text-base-content/60">Быстрая помощь в кризисе</p>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- History Section -->
+            <div id="history-section" class="section animate-fade-in hidden">
+                <div class="mx-auto">
+                    <div class="mb-4 md:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div>
+                            <h2 class="text-xl md:text-3xl font-bold text-base-content">История разговоров</h2>
+                            <p class="text-sm md:text-base text-base-content/60">Ваши предыдущие беседы</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="history-clean" class="btn btn-error btn-xs md:btn-sm gap-1">
+                                <i class="ti ti-trash"></i>
+                                <span class="hidden md:inline">Очистить</span>
+                            </button>
+                            <button id="history-back" class="btn btn-ghost gap-1 md:gap-2 btn-xs md:btn-md">
+                                <i class="ti ti-arrow-left"></i>
+                                Назад
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-base-100 rounded-xl border border-base-300 shadow-sm overflow-hidden">
+                        <div id="history-list" class="divide-y divide-base-300 max-h-[400px] md:max-h-[600px] overflow-y-auto">
+                        </div>
+                        <div id="history-empty" class="p-8 md:p-12 text-center text-base-content/40">
+                            <i class="ti ti-inbox text-4xl md:text-6xl mb-3 block"></i>
+                            <p class="text-base md:text-lg">История пока пуста</p>
+                            <p class="text-xs md:text-sm mt-1">Начните разговор, чтобы увидеть его здесь</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Diary Section -->
+            <div id="diary-section" class="section animate-fade-in hidden">
+                <div class="mx-auto">
+                    <div class="mb-4 md:mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div>
+                            <h2 class="text-xl md:text-3xl font-bold text-base-content">Дневник настроения</h2>
+                            <p class="text-sm md:text-base text-base-content/60">Отслеживайте эмоции и анализируйте</p>
+                        </div>
+                        <button id="diary-back" class="btn btn-ghost gap-2 btn-sm md:btn-md">
+                            <i class="ti ti-arrow-left"></i>
+                            Назад
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+                        <button id="diary-log" class="group rounded-xl bg-primary/10 hover:bg-primary/15 border border-primary/20 hover:border-primary/40 shadow-sm hover:shadow-md transition-all">
+                            <div class="p-4 md:p-6 flex flex-col items-center gap-2 md:gap-3">
+                                <div class="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-primary/20 flex items-center justify-center group-hover:bg-primary/30 transition-colors">
+                                    <i class="ti ti-pencil text-xl md:text-3xl text-primary"></i>
+                                </div>
+                                <div class="text-center">
+                                    <h3 class="text-sm md:text-base font-semibold mb-1">Записать настроение</h3>
+                                    <p class="text-xs md:text-sm text-base-content/60">Как вы себя чувствуете?</p>
+                                </div>
+                            </div>
+                        </button>
+
+                        <button id="diary-view" class="group rounded-xl bg-secondary/10 hover:bg-secondary/15 border border-secondary/20 hover:border-secondary/40 shadow-sm hover:shadow-md transition-all">
+                            <div class="p-4 md:p-6 flex flex-col items-center gap-2 md:gap-3">
+                                <div class="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-secondary/20 flex items-center justify-center group-hover:bg-secondary/30 transition-colors">
+                                    <i class="ti ti-book-2 text-xl md:text-3xl text-secondary"></i>
+                                </div>
+                                <div class="text-center">
+                                    <h3 class="text-sm md:text-base font-semibold mb-1">Посмотреть записи</h3>
+                                    <p class="text-xs md:text-sm text-base-content/60">Ваша история эмоций</p>
+                                </div>
+                            </div>
+                        </button>
+
+                        <button id="diary-statistics" class="group rounded-xl bg-info/10 hover:bg-info/15 border border-info/20 hover:border-info/40 shadow-sm hover:shadow-md transition-all">
+                            <div class="p-4 md:p-6 flex flex-col items-center gap-2 md:gap-3">
+                                <div class="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-info/20 flex items-center justify-center group-hover:bg-info/30 transition-colors">
+                                    <i class="ti ti-chart-bar text-xl md:text-3xl text-info"></i>
+                                </div>
+                                <div class="text-center">
+                                    <h3 class="text-sm md:text-base font-semibold mb-1">Статистика</h3>
+                                    <p class="text-xs md:text-sm text-base-content/60">Графики настроения</p>
+                                </div>
+                            </div>
+                        </button>
+
+                        <button id="diary-analysis" class="group rounded-xl bg-success/10 hover:bg-success/15 border border-success/20 hover:border-success/40 shadow-sm hover:shadow-md transition-all">
+                            <div class="p-4 md:p-6 flex flex-col items-center gap-2 md:gap-3">
+                                <div class="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-success/20 flex items-center justify-center group-hover:bg-success/30 transition-colors">
+                                    <i class="ti ti-brain text-xl md:text-3xl text-success"></i>
+                                </div>
+                                <div class="text-center">
+                                    <h3 class="text-sm md:text-base font-semibold mb-1">AI Анализ</h3>
+                                    <p class="text-xs md:text-sm text-base-content/60">ИИ анализ ваших записей</p>
+                                </div>
+                            </div>
+                        </button>
+
+                        <button id="diary-advice" class="group rounded-xl bg-warning/10 hover:bg-warning/15 border border-warning/20 hover:border-warning/40 shadow-sm hover:shadow-md transition-all">
+                            <div class="p-4 md:p-6 flex flex-col items-center gap-2 md:gap-3">
+                                <div class="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-warning/20 flex items-center justify-center group-hover:bg-warning/30 transition-colors">
+                                    <i class="ti ti-sparkles text-xl md:text-3xl text-warning"></i>
+                                </div>
+                                <div class="text-center">
+                                    <h3 class="text-sm md:text-base font-semibold mb-1">Совет по настроению</h3>
+                                    <p class="text-xs md:text-sm text-base-content/60">Персональные рекомендации</p>
+                                </div>
+                            </div>
+                        </button>
+
+                        <button id="diary-reminders" class="group rounded-xl bg-accent/10 hover:bg-accent/15 border border-accent/20 hover:border-accent/40 shadow-sm hover:shadow-md transition-all">
+                            <div class="p-4 md:p-6 flex flex-col items-center gap-2 md:gap-3">
+                                <div class="w-12 h-12 md:w-16 md:h-16 rounded-xl bg-accent/20 flex items-center justify-center group-hover:bg-accent/30 transition-colors">
+                                    <i class="ti ti-alarm text-xl md:text-3xl text-accent"></i>
+                                </div>
+                                <div class="text-center">
+                                    <h3 class="text-sm md:text-base font-semibold mb-1">Напоминания</h3>
+                                    <p class="text-xs md:text-sm text-base-content/60">Не забывайте записывать</p>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Survey Section -->
+            <div id="survey-section" class="section animate-fade-in hidden">
+                <div class="mx-auto">
+                    <div class="mb-4 md:mb-6 flex items-center justify-between">
+                        <div>
+                            <h2 class="text-xl md:text-3xl font-bold text-base-content">Опросы</h2>
+                            <p class="text-sm md:text-base text-base-content/60">Тестирование по трём шкалам</p>
+                        </div>
+                        <button id="survey-close" class="btn btn-ghost btn-circle btn-sm md:btn-md">
+                            <i class="ti ti-x text-lg md:text-xl"></i>
+                        </button>
+                    </div>
+                    <div class="bg-base-100 rounded-xl border border-base-300 shadow-sm">
+                        <div class="p-4 md:p-6" id="survey-content">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Help Section -->
+            <div id="help-section" class="section animate-fade-in hidden">
+                <div class="mx-auto">
+                    <div class="mb-4 md:mb-6 text-center">
+                        <h2 class="text-xl md:text-3xl font-bold text-error">Помощь</h2>
+                        <p class="text-sm md:text-base text-base-content/60">Экстренные контакты и ресурсы</p>
+                    </div>
+                    <div class="space-y-3 md:space-y-4">
+                        <div class="group rounded-xl bg-base-100 border border-error/30 shadow-sm hover:shadow-md transition-all">
+                            <div class="p-4 md:p-6">
+                                <div class="flex flex-col sm:flex-row items-center sm:items-start gap-3 md:gap-4 text-center sm:text-left">
+                                    <div class="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-error/10 flex items-center justify-center flex-shrink-0">
+                                        <i class="ti ti-phone text-xl md:text-2xl text-error"></i>
+                                    </div>
+                                    <div class="flex-1">
+                                        <h3 class="text-base md:text-lg font-semibold text-error">Телефон доверия</h3>
+                                        <p class="text-lg md:text-2xl font-bold">8-800-2000-122</p>
+                                        <p class="text-xs md:text-sm text-base-content/60">Бесплатно, круглосуточно, анонимно</p>
+                                    </div>
+                                    <a href="tel:88002000122" class="btn btn-error gap-2 btn-sm md:btn-md w-full sm:w-auto">
+                                        <i class="ti ti-phone-call"></i>
+                                        Позвонить
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="group rounded-xl bg-base-100 border border-success/30 shadow-sm hover:shadow-md transition-all">
+                            <div class="p-4 md:p-6">
+                                <div class="flex flex-col sm:flex-row items-center sm:items-start gap-3 md:gap-4 text-center sm:text-left">
+                                    <div class="w-12 h-12 md:w-14 md:h-14 rounded-xl bg-success/10 flex items-center justify-center flex-shrink-0">
+                                        <i class="ti ti-user-heart text-xl md:text-2xl text-success"></i>
+                                    </div>
+                                    <div class="flex-1">
+                                        <h3 class="text-base md:text-lg font-semibold text-success">Личный специалист</h3>
+                                        <p class="text-lg md:text-2xl font-bold">+7 (918) 557-73-40</p>
+                                        <p class="text-xs md:text-sm text-base-content/60">Ваш персональный психолог</p>
+                                    </div>
+                                    <a href="tel:+79185577340" class="btn btn-success gap-2 btn-sm md:btn-md w-full sm:w-auto">
+                                        <i class="ti ti-phone-call"></i>
+                                        Позвонить
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-4 md:mt-6 text-center">
+                        <button id="help-back" class="btn btn-ghost gap-2 btn-sm md:btn-md">
+                            <i class="ti ti-arrow-left"></i>
+                            Назад
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
         
         <script>
             let sessionId = localStorage.getItem('diarySessionId');
@@ -72,6 +450,32 @@
                 localStorage.setItem('diarySessionId', sessionId);
             }
             localStorage.setItem('sessionId', sessionId);
+            
+            // Theme toggle
+            const themeToggle = document.getElementById('theme-toggle');
+            const themeIcon = document.getElementById('theme-icon');
+            const savedTheme = localStorage.getItem('theme') || 'pastel';
+            document.documentElement.setAttribute('data-theme', savedTheme);
+            themeIcon.className = savedTheme === 'dracula' ? 'ti ti-sun text-xl' : 'ti ti-moon text-xl';
+            
+            themeToggle.addEventListener('click', () => {
+                const currentTheme = document.documentElement.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dracula' ? 'pastel' : 'dracula';
+                document.documentElement.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                themeIcon.className = newTheme === 'dracula' ? 'ti ti-sun text-xl' : 'ti ti-moon text-xl';
+            });
+
+            // Logo home button
+            const logoHome = document.getElementById('logo-home');
+            if (logoHome) {
+                logoHome.addEventListener('click', () => {
+                    const sections = document.querySelectorAll('.section');
+                    sections.forEach(section => section.classList.add('hidden'));
+                    const mainMenu = document.getElementById('main-buttons');
+                    mainMenu.classList.remove('hidden');
+                });
+            }
         </script>
     </body>
 </html>
