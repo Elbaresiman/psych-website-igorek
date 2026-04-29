@@ -8,8 +8,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const sections = document.querySelectorAll('.section');
     
     const diaryMainButton = document.getElementById('diary');
-    // Note: switchToSection already calls loadDiaryInterface for diary-section
-    // No special handler needed here to avoid double execution
 
     if ('Notification' in window) {
         Notification.requestPermission();
@@ -1160,17 +1158,479 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 3000);
     }
 
+async function checkUserProfile() {
+    try {
+        const response = await fetch(`${API_BASE}/api/user/profile/${sessionId}`);
+        const data = await response.json();
+        return data.profile !== null;
+    } catch (error) {
+        console.error('Error checking profile:', error);
+        return false;
+    }
+}
+
+function showSurveySelection() {
+    const surveyContent = document.getElementById('survey-content');
+    
+    if (!surveyState.sessionId) {
+        surveyState.sessionId = localStorage.getItem('session_id');
+
+        if (!surveyState.sessionId) {
+            surveyState.sessionId = crypto.randomUUID();
+            localStorage.setItem('session_id', surveyState.sessionId);
+        }
+    }
+
+    checkUserProfile().then(hasProfile => {
+        if (!hasProfile) {
+            let formButtonHtml = `
+                <div class="text-center">
+                    <div class="alert alert-info shadow-lg mb-6">
+                        <i class="ti ti-info-circle"></i>
+                        <span>Для участия в опросах необходимо сначала заполнить анкету</span>
+                    </div>
+                    <div class="card bg-gradient-to-r from-accent/10 to-primary/10 border-2 border-accent/30 shadow-lg mb-8">
+                        <div class="card-body p-6">
+                            <div class="flex flex-col md:flex-row items-center gap-6">
+                                <div class="w-16 h-16 rounded-full bg-accent/20 flex items-center justify-center">
+                                    <i class="ti ti-user-plus text-2xl text-accent"></i>
+                                </div>
+                                <div class="flex-1 text-center md:text-left">
+                                    <h3 class="text-xl font-bold mb-2">Заполните анкету</h3>
+                                    <p class="text-base-content/70">Расскажите немного о себе, чтобы мы могли лучше подобрать рекомендации</p>
+                                </div>
+                                <button id="show-profile-form" class="btn btn-accent btn-lg gap-2">
+                                    <i class="ti ti-pencil"></i>
+                                    Заполнить анкету
+                                    <i class="ti ti-arrow-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            surveyContent.innerHTML = formButtonHtml;
+            document.getElementById('show-profile-form')?.addEventListener('click', () => {
+                showProfileForm();
+            });
+            return;
+        }
+        
+        const allCompleted = surveyState.completedSurveys.length === 3;
+        
+        if (allCompleted) {
+            surveyContent.innerHTML = `
+                <div class="text-center py-8">
+                    <i class="ti ti-circle-check text-6xl text-success mb-4 block"></i>
+                    <h2 class="text-2xl font-bold mb-4">Все опросы завершены!</h2>
+                    <p class="text-base-content/70 mb-6">Спасибо за участие! Ваши ответы помогут нам стать лучше.</p>
+                    <button id="back-to-main" class="btn btn-primary mt-6">Вернуться в главное меню</button>
+                </div>
+            `;
+            document.getElementById('back-to-main')?.addEventListener('click', returnToMain);
+            return;
+        }
+        
+        let surveysHtml = `
+            <div class="text-center">
+                <div class="alert alert-success shadow-sm mb-6">
+                    <i class="ti ti-check-circle"></i>
+                    <span>Анкета заполнена! Вы можете пройти опросы ниже.</span>
+                </div>
+                
+                <!-- Edit Profile Button -->
+                <button id="edit-profile-btn" class="btn btn-ghost btn-sm gap-2 mb-6">
+                    <i class="ti ti-edit"></i>
+                    Редактировать анкету
+                </button>
+                
+                <h2 class="text-2xl font-bold mb-6">Выберите опрос</h2>
+                <div class="flex flex-col gap-4 items-center max-w-md mx-auto">
+        `;
+        
+        const surveyOneCompleted = surveyState.completedSurveys.includes('surveyOne');
+        surveysHtml += `
+            <div class="w-full">
+                <button id="start-survey-one" 
+                        class="btn w-full justify-between ${surveyOneCompleted ? 'btn-success btn-outline' : 'btn-accent'} btn-lg gap-3"
+                        ${surveyOneCompleted ? 'disabled' : ''}>
+                    <span class="flex items-center gap-3">
+                        <i class="ti ti-battery-eco"></i>
+                        Цифровая усталость
+                    </span>
+                    ${surveyOneCompleted ? '<i class="ti ti-check-circle text-xl"></i>' : '<i class="ti ti-arrow-right"></i>'}
+                </button>
+                ${surveyOneCompleted ? '<p class="text-xs text-success mt-1 text-left"><i class="ti ti-check"></i> Опрос пройден</p>' : ''}
+            </div>
+        `;
+        
+        const surveyTwoCompleted = surveyState.completedSurveys.includes('surveyTwo');
+        surveysHtml += `
+            <div class="w-full">
+                <button id="start-survey-two" 
+                        class="btn w-full justify-between ${surveyTwoCompleted ? 'btn-success btn-outline' : 'btn-accent'} btn-lg gap-3"
+                        ${surveyTwoCompleted ? 'disabled' : ''}>
+                    <span class="flex items-center gap-3">
+                        <i class="ti ti-list"></i>
+                        Шкала Ликерта
+                    </span>
+                    ${surveyTwoCompleted ? '<i class="ti ti-check-circle text-xl"></i>' : '<i class="ti ti-arrow-right"></i>'}
+                </button>
+                ${surveyTwoCompleted ? '<p class="text-xs text-success mt-1 text-left"><i class="ti ti-check"></i> Опрос пройден</p>' : ''}
+            </div>
+        `;
+        
+        const surveyThreeCompleted = surveyState.completedSurveys.includes('surveyThree');
+        surveysHtml += `
+            <div class="w-full">
+                <button id="start-survey-three" 
+                        class="btn w-full justify-between ${surveyThreeCompleted ? 'btn-success btn-outline' : 'btn-accent'} btn-lg gap-3"
+                        ${surveyThreeCompleted ? 'disabled' : ''}>
+                    <span class="flex items-center gap-3">
+                        <i class="ti ti-clipboard-check"></i>
+                        Опросник Чена
+                    </span>
+                    ${surveyThreeCompleted ? '<i class="ti ti-check-circle text-xl"></i>' : '<i class="ti ti-arrow-right"></i>'}
+                </button>
+                ${surveyThreeCompleted ? '<p class="text-xs text-success mt-1 text-left"><i class="ti ti-check"></i> Опрос пройден</p>' : ''}
+            </div>
+        `;
+        
+        const completedCount = surveyState.completedSurveys.length;
+        surveysHtml += `
+            <div class="w-full mt-6 pt-4 border-t border-base-300">
+                <div class="flex items-center justify-between text-sm mb-2">
+                    <span>Прогресс</span>
+                    <span class="font-semibold">${completedCount}/3 опросов</span>
+                </div>
+                <progress class="progress progress-success w-full" value="${completedCount}" max="3"></progress>
+            </div>
+        `;
+        
+        surveysHtml += '</div></div>';
+        surveyContent.innerHTML = surveysHtml;
+        
+        if (!surveyOneCompleted) {
+            document.getElementById('start-survey-one')?.addEventListener('click', () => startSurvey('surveyOne'));
+        }
+        if (!surveyTwoCompleted) {
+            document.getElementById('start-survey-two')?.addEventListener('click', () => startSurvey('surveyTwo'));
+        }
+        if (!surveyThreeCompleted) {
+            document.getElementById('start-survey-three')?.addEventListener('click', () => startSurvey('surveyThree'));
+        }
+        
+        document.getElementById('edit-profile-btn')?.addEventListener('click', () => {
+            showProfileForm(true);
+        });
+    });
+}
+
+async function showProfileForm(editMode = false) {
+    const surveyContent = document.getElementById('survey-content');
+    
+    let existingData = null;
+    if (editMode) {
+        try {
+            const response = await fetch(`${API_BASE}/api/user/profile/${sessionId}`);
+            const data = await response.json();
+            if (data.profile) {
+                existingData = data.profile;
+            }
+        } catch (error) {
+            console.error('Error fetching profile:', error);
+        }
+    }
+    
+    const educationOptions = {
+        'spo_9': 'СПО на базе 9 классов',
+        'spo_11': 'СПО на базе 11 классов',
+        'bachelor': 'Бакалавриат',
+        'master': 'Магистратура',
+        'postgraduate': 'Аспирантура'
+    };
+
+    let formHtml = `
+        <div class="max-w-2xl mx-auto">
+            <h3 class="text-xl md:text-2xl font-bold mb-6 text-center">${editMode ? 'Редактирование анкеты' : 'Анкета участника'}</h3>
+            <form id="profile-form" class="space-y-6">
+                <!-- Status -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-semibold text-base">Статус <span class="text-error">*</span></span>
+                    </label>
+                    <select id="profile-status" class="select select-bordered w-full" required>
+                        <option value="">Выберите статус</option>
+                        <option value="student" ${existingData?.status === 'student' ? 'selected' : ''}>Студент</option>
+                        <option value="teacher" ${existingData?.status === 'teacher' ? 'selected' : ''}>Преподаватель</option>
+                        <option value="employee" ${existingData?.status === 'employee' ? 'selected' : ''}>Сотрудник</option>
+                    </select>
+                </div>
+                
+                <!-- Age -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-semibold text-base">Возраст <span class="text-error">*</span></span>
+                    </label>
+                    <input type="number" id="profile-age" class="input input-bordered w-full" placeholder="Введите ваш возраст" min="16" max="100" required value="${existingData?.age || ''}">
+                    <span id="age-hint" class="text-xs text-base-content/60 mt-1"></span>
+                </div>
+                
+                <!-- Field -->
+                <div class="form-control">
+                    <label class="label">
+                        <span class="label-text font-semibold text-base">Сфера деятельности <span class="text-error">*</span></span>
+                    </label>
+                    <select id="profile-field" class="select select-bordered w-full" required>
+                        <option value="">Выберите сферу</option>
+                        <option value="it" ${existingData?.field === 'it' ? 'selected' : ''}>ИТ-технологии</option>
+                        <option value="law" ${existingData?.field === 'law' ? 'selected' : ''}>Юриспруденция</option>
+                        <option value="tourism" ${existingData?.field === 'tourism' ? 'selected' : ''}>Туризм</option>
+                        <option value="management" ${existingData?.field === 'management' ? 'selected' : ''}>Менеджмент</option>
+                        <option value="psychology" ${existingData?.field === 'psychology' ? 'selected' : ''}>Психология</option>
+                        <option value="medicine" ${existingData?.field === 'medicine' ? 'selected' : ''}>Медицина</option>
+                        <option value="economics" ${existingData?.field === 'economics' ? 'selected' : ''}>Экономика</option>
+                        <option value="logistics" ${existingData?.field === 'logistics' ? 'selected' : ''}>Логистика</option>
+                        <option value="other" ${existingData?.field === 'other' ? 'selected' : ''}>Другое</option>
+                    </select>
+                </div>
+                
+                <!-- Other field input -->
+                <div id="other-field-container" class="form-control ${existingData?.field === 'other' ? '' : 'hidden'}">
+                    <label class="label">
+                        <span class="label-text font-semibold text-base">Укажите сферу</span>
+                    </label>
+                    <input type="text" id="profile-field-other" class="input input-bordered w-full" placeholder="Введите вашу сферу деятельности" value="${existingData?.field_other || ''}">
+                </div>
+                
+                <!-- Education Level (only for students) -->
+                <div id="education-level-container" class="form-control ${existingData?.status === 'student' ? '' : 'hidden'}">
+                    <label class="label">
+                        <span class="label-text font-semibold text-base">Уровень образования <span class="text-error">*</span></span>
+                    </label>
+                    <select id="profile-education-level" class="select select-bordered w-full">
+                        <option value="">Выберите уровень образования</option>
+                        <option value="spo_9" ${existingData?.student_education_level === 'spo_9' ? 'selected' : ''}>СПО на базе 9 классов</option>
+                        <option value="spo_11" ${existingData?.student_education_level === 'spo_11' ? 'selected' : ''}>СПО на базе 11 классов</option>
+                        <option value="bachelor" ${existingData?.student_education_level === 'bachelor' ? 'selected' : ''}>Бакалавриат</option>
+                        <option value="master" ${existingData?.student_education_level === 'master' ? 'selected' : ''}>Магистратура</option>
+                        <option value="postgraduate" ${existingData?.student_education_level === 'postgraduate' ? 'selected' : ''}>Аспирантура</option>
+                    </select>
+                </div>
+
+                <!-- Dynamic field based on status -->
+                <div id="dynamic-field-container" class="form-control ${existingData?.status ? '' : 'hidden'}">
+                    <label id="dynamic-label" class="label">
+                        <span class="label-text font-semibold text-base"></span>
+                    </label>
+                    <input type="number" id="dynamic-value" class="input input-bordered w-full" placeholder="">
+                </div>
+                
+                <div class="alert alert-info shadow-sm">
+                    <i class="ti ti-info-circle"></i>
+                    <span>Все данные конфиденциальны и будут использованы только для статистики</span>
+                </div>
+                
+                <div class="flex gap-4 justify-end">
+                    <button type="button" id="cancel-profile" class="btn btn-ghost">Отмена</button>
+                    <button type="submit" class="btn btn-primary">${editMode ? 'Обновить' : 'Сохранить и продолжить'}</button>
+                </div>
+            </form>
+        </div>
+    `;
+    
+    surveyContent.innerHTML = formHtml;
+    
+    const ageInput = document.getElementById('profile-age');
+    const ageHint = document.getElementById('age-hint');
+    const statusSelect = document.getElementById('profile-status');
+    const dynamicContainer = document.getElementById('dynamic-field-container');
+    const dynamicLabel = document.getElementById('dynamic-label');
+    const dynamicValue = document.getElementById('dynamic-value');
+    const educationContainer = document.getElementById('education-level-container');
+    const educationSelect = document.getElementById('profile-education-level');
+
+    surveyState.role = statusSelect.value;
+    localStorage.setItem('user_role', statusSelect.value);
+
+    function updateAgeHint() {
+        const status = statusSelect.value;
+        if (status === 'student') {
+            ageInput.min = 16;
+            ageHint.textContent = 'Минимальный возраст для студентов: 16 лет';
+        } else {
+            ageInput.min = 18;
+            ageHint.textContent = 'Минимальный возраст: 18 лет';
+        }
+        if (ageInput.value && parseInt(ageInput.value) < ageInput.min) {
+            ageInput.value = ageInput.min;
+        }
+    }
+    
+    if (existingData) {
+        if (existingData.status === 'student' && existingData.student_course) {
+            dynamicValue.value = existingData.student_course;
+        } else if (existingData.status === 'teacher' && existingData.teacher_experience) {
+            dynamicValue.value = existingData.teacher_experience;
+        } else if (existingData.status === 'employee' && existingData.employee_experience) {
+            dynamicValue.value = existingData.employee_experience;
+        }
+    }
+    
+    statusSelect.addEventListener('change', (e) => {
+        const status = e.target.value;
+        updateAgeHint();
+
+        if (status === 'student') {
+            dynamicLabel.innerHTML = '<span class="label-text font-semibold text-base">Курс <span class="text-error">*</span></span>';
+            dynamicValue.placeholder = 'Введите номер курса (1-4)';
+            dynamicValue.min = 1;
+            dynamicValue.max = 4;
+            dynamicContainer.classList.remove('hidden');
+            educationContainer.classList.remove('hidden');
+            if (educationSelect) educationSelect.required = true;
+        } else if (status === 'teacher') {
+            dynamicLabel.innerHTML = '<span class="label-text font-semibold text-base">Педагогический стаж (лет) <span class="text-error">*</span></span>';
+            dynamicValue.placeholder = 'Введите количество лет стажа';
+            dynamicValue.min = 0;
+            dynamicValue.max = 60;
+            dynamicContainer.classList.remove('hidden');
+            educationContainer.classList.add('hidden');
+            if (educationSelect) educationSelect.required = false;
+        } else if (status === 'employee') {
+            dynamicLabel.innerHTML = '<span class="label-text font-semibold text-base">Опыт работы в образовательной организации (лет) <span class="text-error">*</span></span>';
+            dynamicValue.placeholder = 'Введите количество лет';
+            dynamicValue.min = 0;
+            dynamicValue.max = 50;
+            dynamicContainer.classList.remove('hidden');
+            educationContainer.classList.add('hidden');
+            if (educationSelect) educationSelect.required = false;
+        } else {
+            dynamicContainer.classList.add('hidden');
+            educationContainer.classList.add('hidden');
+            if (educationSelect) educationSelect.required = false;
+        }
+    });
+    
+    if (existingData?.status) {
+        statusSelect.dispatchEvent(new Event('change'));
+        updateAgeHint();
+    }
+    
+    const fieldSelect = document.getElementById('profile-field');
+    const otherContainer = document.getElementById('other-field-container');
+    
+    fieldSelect.addEventListener('change', (e) => {
+        if (e.target.value === 'other') {
+            otherContainer.classList.remove('hidden');
+        } else {
+            otherContainer.classList.add('hidden');
+        }
+    });
+    
+    const form = document.getElementById('profile-form');
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const status = statusSelect.value;
+        const age = parseInt(document.getElementById('profile-age').value);
+        const field = fieldSelect.value;
+        const fieldOther = field === 'other' ? document.getElementById('profile-field-other').value : null;
+        const educationLevel = status === 'student' ? educationSelect?.value : null;
+        
+        let dynamicValue_num = null;
+        if (status === 'student') {
+            dynamicValue_num = parseInt(dynamicValue.value);
+        } else if (status === 'teacher') {
+            dynamicValue_num = parseInt(dynamicValue.value);
+        } else if (status === 'employee') {
+            dynamicValue_num = parseInt(dynamicValue.value);
+        }
+        
+        if (!status || !age || !field) {
+            showInAppNotification('error', 'Пожалуйста, заполните все обязательные поля');
+            return;
+        }
+        
+        const minAge = status === 'student' ? 16 : 18;
+        if (age < minAge) {
+            showInAppNotification('error', `Возраст должен быть не менее ${minAge} лет для выбранного статуса`);
+            return;
+        }
+
+        if (status === 'student') {
+            if (!educationLevel) {
+                showInAppNotification('error', 'Пожалуйста, выберите уровень образования');
+                return;
+            }
+            if (dynamicValue_num < 1 || dynamicValue_num > 4) {
+                showInAppNotification('error', 'Курс должен быть от 1 до 4');
+                return;
+            }
+        }
+        
+        if (status === 'teacher' && dynamicValue_num < 0) {
+            showInAppNotification('error', 'Введите корректный стаж');
+            return;
+        }
+        
+        if (status === 'employee' && dynamicValue_num < 0) {
+            showInAppNotification('error', 'Введите корректный опыт работы');
+            return;
+        }
+        
+        try {
+            const response = await fetch(`${API_BASE}/api/user/profile`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    status: status,
+                    age: age,
+                    field: field,
+                    field_other: fieldOther,
+                    student_course: status === 'student' ? dynamicValue_num : null,
+                    student_education_level: status === 'student' ? educationLevel : null,
+                    teacher_experience: status === 'teacher' ? dynamicValue_num : null,
+                    employee_experience: status === 'employee' ? dynamicValue_num : null
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                surveyState.role = status;
+                localStorage.setItem('user_role', status);
+                showInAppNotification('success', editMode ? 'Анкета обновлена!' : 'Анкета успешно сохранена!');
+                showSurveySelection();
+            } else {
+                showInAppNotification('error', 'Ошибка при сохранении анкеты');
+            }
+        } catch (error) {
+            console.error('Error saving profile:', error);
+            showInAppNotification('error', 'Ошибка соединения');
+        }
+    });
+    
+    document.getElementById('cancel-profile').addEventListener('click', () => {
+        showSurveySelection();
+    });
+}
+
     let surveyState = {
         isActive: false,
         role: null,
         currentSurvey: null,
         currentQuestionIndex: 0,
         questionsList: [],
+        hasOpenEnded: false,
+        openEndedQuestions: [],
         responses: {
             surveyOne: [],
             surveyTwo: [],
             surveyThree: []
         },
+        openEndedResponses: [],
         completedSurveys: []
     };
 
@@ -1210,7 +1670,7 @@ document.addEventListener('DOMContentLoaded', function() {
         },
         surveyTwo: {
             title: 'Шкала Ликерта',
-            main: [
+            baseQuestions: [
                 'Я умею эффективно формулировать запросы к ИИ (например, ChatGPT), чтобы получить точные ответы.',
                 'Я знаю, как проверить достоверность ответа ИИ, сравнивая с надежными источниками.',
                 'Я могу распознать предвзятость или ошибки в ответе ИИ.',
@@ -1220,15 +1680,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 'Я чувствую себя уверенно в использовании ИИ для решения задач, но не полагаюсь на него слепо.',
                 'Я обсуждаю ответы ИИ с одногруппниками или преподавателями, чтобы проверить их точность.'
             ],
-            student: [
+            studentQuestions: [
                 'Я получаю обучение по использованию ИИ в университете.',
                 'ИИ помогает мне в учебе, но я боюсь злоупотреблений.',
                 'Я могу самостоятельно определить, когда ответ ИИ неверен или предвзят.'
             ],
-            teacher: [
+            studentOpenEnded: [
+                'Опишите случай, когда вы использовали ИИ для учебной задачи и могли ли верифицировать ответ.',
+                'Какие барьеры мешают вам лучше использовать ИИ этично?'
+            ],
+            teacherQuestions: [
                 'Я обучаю студентов использованию ИИ в аудиториях.',
                 'Студенты часто некритично используют ИИ.',
                 'У нас в университете есть политики по интеграции ИИ в образование.'
+            ],
+            teacherOpenEnded: [
+                'Как вы оцениваете риски ИИ в образовании (например, снижение критического мышления)?',
+                'Какие ресурсы нужны для обучения студентов цифровому сознанию?'
             ]
         },
         surveyThree: {
@@ -1264,7 +1732,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
     function loadSurveyInterface() {
         loadSurveyState();
-        showRoleSelection();
+        checkUserProfile().then(hasProfile => {
+            if (!hasProfile) {
+                showProfileForm(false);
+            } else {
+                showSurveySelection();
+            }
+        });
     }
 
     function loadSurveyState() {
@@ -1302,53 +1776,24 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    function showRoleSelection() {
-        if (surveyState.role) {
-            showSurveySelection();
-            return;
-        }
-        const surveyContent = document.getElementById('survey-content');
-        surveyContent.innerHTML = '<div class="text-center"><h2 class="text-3xl font-bold mb-8">Тестирование по трём шкалам</h2><div class="flex flex-col gap-4 items-center"><button id="role-teacher" class="btn btn-primary btn-lg w-full max-w-xs gap-3"><i class="ti ti-chalkboard-teacher"></i> Преподаватель</button><button id="role-student" class="btn btn-primary btn-lg w-full max-w-xs gap-3"><i class="ti ti-school"></i> Студент</button></div></div>';
-        
-        document.getElementById('role-teacher').addEventListener('click', () => {
-            surveyState.role = 'teacher';
-            saveSurveyRole('teacher');
-            showSurveySelection();
-        });
-        
-        document.getElementById('role-student').addEventListener('click', () => {
-            surveyState.role = 'student';
-            saveSurveyRole('student');
-            showSurveySelection();
+    const surveyMainBtn = document.getElementById('survey-main-btn');
+    if (surveyMainBtn) {
+        surveyMainBtn.addEventListener('click', function() {
+            switchToSection('survey-section');
         });
     }
 
-    function showSurveySelection() {
-        const surveyContent = document.getElementById('survey-content');
-
-        if (surveyState.completedSurveys.length === 3) {
-            surveyContent.innerHTML = '<div class="text-center"><h2 class="text-3xl font-bold mb-6">Тестирование по трём шкалам</h2><div class="alert alert-success mb-6 shadow-sm"><span class="text-lg"><i class="ti ti-circle-check"></i> Все опросы завершены! Спасибо за участие!</span></div></div>';
-            return;
+    async function checkUserRole() {
+        try {
+            const response = await fetch(`${API_BASE}/api/user/profile/${sessionId}`);
+            const data = await response.json();
+            if (data.profile && data.profile.status) {
+                return data.profile.status;
+            }
+        } catch (error) {
+            console.error('Error fetching user role:', error);
         }
-
-        let surveysHtml = '<div class="text-center"><h2 class="text-3xl font-bold mb-8">Выберите опрос</h2><div class="flex flex-col gap-4 items-center">';
-        
-        if (!surveyState.completedSurveys.includes('surveyOne')) {
-            surveysHtml += '<button id="start-survey-one" class="btn btn-primary btn-lg w-full max-w-xs gap-3"><i class="ti ti-battery-eco"></i> Цифровая усталость</button>';
-        }
-        if (!surveyState.completedSurveys.includes('surveyTwo')) {
-            surveysHtml += '<button id="start-survey-two" class="btn btn-primary btn-lg w-full max-w-xs gap-3"><i class="ti ti-list"></i> Шкала Ликерта</button>';
-        }
-        if (!surveyState.completedSurveys.includes('surveyThree')) {
-            surveysHtml += '<button id="start-survey-three" class="btn btn-primary btn-lg w-full max-w-xs gap-3"><i class="ti ti-clipboard-check"></i> Опросник Чена</button>';
-        }
-        
-        surveysHtml += '</div></div>';
-        surveyContent.innerHTML = surveysHtml;
-        
-        document.getElementById('start-survey-one')?.addEventListener('click', () => startSurvey('surveyOne'));
-        document.getElementById('start-survey-two')?.addEventListener('click', () => startSurvey('surveyTwo'));
-        document.getElementById('start-survey-three')?.addEventListener('click', () => startSurvey('surveyThree'));
+        return 'student';
     }
 
     function startSurvey(surveyKey) {
@@ -1360,47 +1805,226 @@ document.addEventListener('DOMContentLoaded', function() {
             for (const block in surveyQuestions.surveyOne.blocks) {
                 surveyState.questionsList.push(...surveyQuestions.surveyOne.blocks[block]);
             }
+            surveyState.hasOpenEnded = false;
             showSurveyQuestion();
         } else if (surveyKey === 'surveyTwo') {
-            surveyState.questionsList = [...surveyQuestions.surveyTwo.main];
-            if (surveyState.role === 'student') {
-                surveyState.questionsList.push(...surveyQuestions.surveyTwo.student);
-            } else if (surveyState.role === 'teacher') {
-                surveyState.questionsList.push(...surveyQuestions.surveyTwo.teacher);
-            }
-            showSurveyQuestion();
+            surveyState.questionsList = [...surveyQuestions.surveyTwo.baseQuestions];
+            checkUserRole().then(userRole => {
+                surveyState.role = userRole;
+                if (userRole === 'student') {
+                    surveyState.questionsList = [
+                        ...surveyQuestions.surveyTwo.baseQuestions,
+                        ...surveyQuestions.surveyTwo.studentQuestions,
+                        ...surveyQuestions.surveyTwo.studentOpenEnded.map(q => ({
+                            text: q,
+                            type: 'open'
+                        }))
+                    ];
+                } else {
+                    surveyState.questionsList = [
+                        ...surveyQuestions.surveyTwo.baseQuestions,
+                        ...surveyQuestions.surveyTwo.teacherQuestions,
+                        ...surveyQuestions.surveyTwo.teacherOpenEnded.map(q => ({
+                            text: q,
+                            type: 'open'
+                        }))
+                    ];
+                }
+
+                surveyState.currentQuestionIndex = 0;
+                surveyState.openEndedResponses = [];
+                showSurveyQuestion();
+            })
         } else if (surveyKey === 'surveyThree') {
             surveyState.questionsList = [...surveyQuestions.surveyThree.questions];
+            surveyState.hasOpenEnded = false;
             showSurveyQuestion();
         }
     }
 
     function showSurveyQuestion() {
         const surveyContent = document.getElementById('survey-content');
-        const question = surveyState.questionsList[surveyState.currentQuestionIndex];
-        const progress = (surveyState.currentQuestionIndex + 1) + '/' + surveyState.questionsList.length;
-        
-        surveyContent.innerHTML = '<div class="text-center"><h2 class="text-3xl font-bold mb-2">' + surveyQuestions[surveyState.currentSurvey].title + '</h2><div class="mb-6"><progress class="progress progress-primary w-full max-w-md mx-auto" value="' + (surveyState.currentQuestionIndex / surveyState.questionsList.length * 100) + '" max="100"></progress><div class="text-sm text-base-content/60 mt-2">Вопрос ' + progress + '</div></div><div class="mb-8"><div class="text-xl mb-8 font-medium">' + question + '</div><div class="flex justify-center gap-4 flex-wrap" id="rating-buttons"></div></div><button id="cancel-survey" class="btn btn-ghost gap-2"><i class="ti ti-arrow-left"></i> Назад к опросам</button></div>';
-        
-        const ratingContainer = document.getElementById('rating-buttons');
-        for (let i = 1; i <= 5; i++) {
-            const btn = document.createElement('button');
-            btn.textContent = i;
-            btn.className = 'btn btn-circle btn-lg btn-primary text-xl hover:scale-110 transition-transform';
-            btn.addEventListener('click', () => storeResponse(i));
-            ratingContainer.appendChild(btn);
+        const current = surveyState.questionsList[surveyState.currentQuestionIndex];
+        const totalQuestions = surveyState.questionsList.length;
+        const isOpenEnded = typeof current === 'object' && current.type === 'open';
+        const questionText = isOpenEnded ? current.text : current;
+
+        if (surveyState.currentQuestionIndex >= totalQuestions) {
+            completeSurvey();
+            return;
         }
-        
+
+        const progress = (surveyState.currentQuestionIndex + 1) + '/' + (surveyState.questionsList.length + surveyState.openEndedQuestions.length);
+
+        if (isOpenEnded) {
+            surveyContent.innerHTML = `
+                <div class="text-center max-w-2xl mx-auto">
+                    <h2 class="text-3xl font-bold mb-2">${surveyQuestions[surveyState.currentSurvey].title}</h2>
+                    <div class="mb-6">
+                        <progress class="progress progress-accent w-full max-w-md mx-auto" value="${(surveyState.currentQuestionIndex / (surveyState.questionsList.length + surveyState.openEndedQuestions.length) * 100)}" max="100"></progress>
+                        <div class="text-sm text-base-content/60 mt-2">Вопрос ${progress}</div>
+                    </div>
+                    <div class="mb-8">
+                        <div class="text-xl mb-8 font-medium text-left">${questionText}</div>
+                        <div class="form-control">
+                            <textarea id="open-ended-answer" class="textarea textarea-bordered textarea-lg w-full min-h-[150px]" placeholder="Введите ваш развернутый ответ..."></textarea>
+                        </div>
+                    </div>
+                    <div class="flex justify-center gap-4 flex-wrap">
+                        <button id="submit-open-ended" class="btn btn-primary btn-lg gap-2">
+                            <i class="ti ti-device-floppy"></i>
+                            Далее
+                        </button>
+                        <button id="prev-question" class="btn btn-outline">
+                            Назад
+                        </button>
+                        <button id="cancel-survey" class="btn btn-ghost gap-2">
+                            <i class="ti ti-arrow-left"></i> 
+                            Назад к опросам
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('prev-question')?.addEventListener('click', () => {
+                if (surveyState.currentQuestionIndex > 0) {
+                    surveyState.currentQuestionIndex--;
+
+                    if (surveyState.responses[surveyState.currentSurvey]?.length) {
+                        surveyState.responses[surveyState.currentSurvey].pop();
+                    }
+
+                    if (surveyState.openEndedResponses?.length) {
+                        surveyState.openEndedResponses.pop();
+                    }
+                    showSurveyQuestion();
+                }
+            });
+
+            document.getElementById('submit-open-ended')?.addEventListener('click', (e) => {
+                const btn = e.currentTarget;
+                btn.disabled = true;
+
+                const answer = document.getElementById('open-ended-answer')?.value.trim();
+                if (!answer) {
+                    showInAppNotification('warning', 'Пожалуйста, введите ответ перед продолжением');
+                    btn.disabled = false;
+                    return;
+                }
+
+                surveyState.openEndedResponses.push(answer);
+                surveyState.currentQuestionIndex++;
+
+                showSurveyQuestion();
+            });
+            
+        } else {
+            const question = surveyState.questionsList[surveyState.currentQuestionIndex];
+            const totalQuestions = surveyState.questionsList.length + (surveyState.openEndedQuestions?.length || 0);
+            const progress = (surveyState.currentQuestionIndex + 1) + '/' + totalQuestions;
+            
+            surveyContent.innerHTML = `
+                <div class="text-center max-w-2xl mx-auto">
+                    <h2 class="text-3xl font-bold mb-2">${surveyQuestions[surveyState.currentSurvey].title}</h2>
+                    <div class="mb-6">
+                        <progress class="progress progress-accent w-full max-w-md mx-auto" value="${(surveyState.currentQuestionIndex / totalQuestions * 100)}" max="100"></progress>
+                        <div class="text-sm text-base-content/60 mt-2">Вопрос ${progress}</div>
+                    </div>
+                    <div class="mb-8">
+                        <div class="text-xl mb-8 font-medium">${question}</div>
+                        <div class="flex justify-center gap-3 flex-wrap" id="rating-buttons">
+                            <div class="w-full text-center mb-4">
+                                <div class="flex justify-center gap-2 text-sm text-base-content/60">
+                                    <span>Совсем не согласен</span>
+                                    <span class="mx-4">→</span>
+                                    <span>Полностью согласен</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="prev-question" class="btn btn-outline">
+                        Назад
+                    </button>
+                    <button id="cancel-survey" class="btn btn-ghost gap-2">
+                        <i class="ti ti-arrow-left"></i> 
+                        Назад к опросам
+                    </button>
+                </div>
+            `;
+            
+            document.getElementById('prev-question')?.addEventListener('click', () => {
+                if (surveyState.currentQuestionIndex > 0) {
+                    surveyState.currentQuestionIndex--;
+
+                    if (surveyState.responses[surveyState.currentSurvey]?.length) {
+                        surveyState.responses[surveyState.currentSurvey].pop();
+                    }
+
+                    if (surveyState.openEndedResponses?.length) {
+                        surveyState.openEndedResponses.pop();
+                    }
+                    showSurveyQuestion();
+                }
+            });
+
+            const ratingContainer = document.getElementById('rating-buttons');
+            
+            for (let i = 1; i <= 5; i++) {
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-circle btn-lg btn-accent text-xl hover:scale-110 transition-transform';
+                btn.textContent = i;
+
+                btn.addEventListener('click', () => {
+                    surveyState.responses[surveyState.currentSurvey].push(i);
+                    surveyState.currentQuestionIndex++;
+                    showSurveyQuestion();
+                });
+
+                ratingContainer.appendChild(btn);
+            }
+            if (!surveyState.role) {
+                surveyState.role = localStorage.getItem('user_role');
+            }
+        }
+
         document.getElementById('cancel-survey')?.addEventListener('click', () => {
             showSurveySelection();
         });
     }
 
+    function getRatingLabel(value) {
+        const labels = {
+            1: 'Совсем не согласен',
+            2: 'Не согласен',
+            3: 'Нейтрально',
+            4: 'Согласен',
+            5: 'Полностью согласен'
+        };
+        return labels[value];
+    }
+
     function storeResponse(value) {
+        if (!surveyState.responses[surveyState.currentSurvey]) {
+            surveyState.responses[surveyState.currentSurvey] = [];
+        }
         surveyState.responses[surveyState.currentSurvey].push(value);
         surveyState.currentQuestionIndex++;
         
-        if (surveyState.currentQuestionIndex < surveyState.questionsList.length) {
+        if (surveyState.currentQuestionIndex < surveyState.questionsList.length + (surveyState.openEndedQuestions?.length || 0)) {
+            showSurveyQuestion();
+        } else {
+            completeSurvey();
+        }
+    }
+
+    function storeOpenEndedResponse(answer) {
+        if (!surveyState.openEndedResponses) {
+            surveyState.openEndedResponses = [];
+        }
+        surveyState.openEndedResponses.push(answer);
+        surveyState.currentQuestionIndex++;
+        
+        if (surveyState.currentQuestionIndex < surveyState.questionsList.length + (surveyState.openEndedQuestions?.length || 0)) {
             showSurveyQuestion();
         } else {
             completeSurvey();
@@ -1414,15 +2038,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         const responses = surveyState.responses[surveyState.currentSurvey];
-        saveSurveyToDatabase(surveyState.currentSurvey, responses);
+        const openEndedResponses = surveyState.openEndedResponses || [];
+        saveSurveyToDatabase(surveyState.currentSurvey, responses, openEndedResponses);
 
-        saveCompletedSurveys();
+        surveyState.openEndedResponses = [];
         
-        console.log('Responses for ' + surveyState.currentSurvey + ':', surveyState.responses[surveyState.currentSurvey]);
-        
+        console.log('Responses for ' + surveyState.currentSurvey + ':', responses);
+        console.log('Open-ended responses:', openEndedResponses);
+
         const surveyContent = document.getElementById('survey-content');
         
-        if (surveyState.completedSurveys.length === 3) {
+        const completedCount = surveyState.completedSurveys.length;
+        const allCompleted = completedCount == 3;
+
+        if (allCompleted) {
             surveyContent.innerHTML = '<div class="text-center"><h2 class="text-3xl font-bold mb-6">Тестирование по трём шкалам</h2><div class="alert alert-success mb-6 shadow-sm"><span class="text-lg"><i class="ti ti-circle-check"></i> Все опросы завершены! Спасибо за участие!</span></div></div>';
         } else {
             surveyContent.innerHTML = '<div class="text-center"><h2 class="text-3xl font-bold mb-4">' + surveyQuestions[surveyState.currentSurvey].title + '</h2><div class="alert alert-success mb-6 shadow-sm"><span class="text-lg"><i class="ti ti-circle-check"></i> Опрос завершен! Спасибо за ваши ответы!</span></div><button id="back-to-surveys" class="btn btn-ghost gap-2"><i class="ti ti-arrow-left"></i> К списку опросов</button></div>';
@@ -1434,16 +2063,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
     loadSurveyState();
 
-    async function saveSurveyToDatabase(surveyKey, responses) {
+    async function saveSurveyToDatabase(surveyKey, responses, openEndedResponses = []) {
+        let currentRole = surveyState.role;
+        
+        if (!currentRole || currentRole === '') {
+            try {
+                const profileRes = await fetch(`${API_BASE}/api/user/profile/${sessionId}`);
+                const profileData = await profileRes.json();
+                if (profileData.profile && profileData.profile.status) {
+                    currentRole = profileData.profile.status;
+                    surveyState.role = currentRole;
+                    localStorage.setItem('user_role', currentRole);
+                }
+            } catch (e) {
+                console.warn("Could not fetch role from profile, using fallback");
+                currentRole = localStorage.getItem('user_role') || 'student';
+            }
+        }
+
         try {
             const response = await fetch(`${API_BASE}/api/survey/save`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     session_id: sessionId,
-                    role: surveyState.role,
+                    role: currentRole,
                     survey_key: surveyKey,
-                    responses: responses
+                    responses: responses,
+                    open_ended_responses: openEndedResponses
                 })
             });
             const data = await response.json();

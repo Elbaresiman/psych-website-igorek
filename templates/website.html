@@ -50,9 +50,9 @@
         <!-- Main Content -->
         <main class="container mx-auto px-3 md:px-4 py-4 md:py-6 max-w-6xl">
             <!-- Floating Survey Button -->
-            <div id="survey-floating-btn" class="fixed bottom-5 right-5 w-12 h-12 md:w-14 md:h-14 rounded-full bg-primary text-white flex items-center justify-center shadow-lg hover:shadow-xl hover:bg-primary-focus transition-all cursor-pointer z-40">
+            <!-- <div id="survey-floating-btn" class="fixed bottom-5 right-5 w-12 h-12 md:w-14 md:h-14 rounded-full bg-primary text-white flex items-center justify-center shadow-lg hover:shadow-xl hover:bg-primary-focus transition-all cursor-pointer z-40">
                 <i class="ti ti-chart-bar text-lg md:text-xl"></i>
-            </div>
+            </div> -->
 
             <!-- Main Menu -->
             <div id="main-buttons" class="flex flex-col gap-4 md:gap-6 animate-fade-in">
@@ -67,6 +67,24 @@
                                 Начать общение
                             </button>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Survey Card -->
+                <div class="hero rounded-2xl bg-base-200 shadow-sm border border-base-300 survey-card-compact">
+                    <div class="hero-content p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 md:gap-10 w-full">
+                        <div class="w-20 h-20 md:w-28 md:h-28 rounded-2xl bg-accent/20 flex items-center justify-center flex-shrink-0">
+                            <i class="ti ti-clipboard-list text-3xl md:text-5xl text-accent"></i>
+                        </div>
+                        <div class="flex-1 text-center md:text-left">
+                            <h3 class="text-xl md:text-3xl font-bold mb-2">Опросы</h3>
+                            <p class="text-sm md:text-lg text-base-content/70 max-w-md">Заполните анкету и пройдите опросы</p>
+                        </div>
+                        <button id="survey-main-btn" class="btn btn-accent btn-md md:btn-lg gap-3 px-8">
+                            <i class="ti ti-clipboard-check text-lg md:text-xl"></i>
+                            Начать
+                            <i class="ti ti-arrow-right"></i>
+                        </button>
                     </div>
                 </div>
 
@@ -373,7 +391,7 @@
                 <div class="mx-auto">
                     <div class="mb-4 md:mb-6 flex items-center justify-between">
                         <div>
-                            <h2 class="text-xl md:text-3xl font-bold text-base-content">Опросы</h2>
+                            <h2 class="text-xl md:text-3xl font-bold text-base-content">Опросы и анкетирование</h2>
                             <p class="text-sm md:text-base text-base-content/60">Тестирование по трём шкалам</p>
                         </div>
                         <button id="survey-close" class="btn btn-ghost btn-circle btn-sm md:btn-md">
